@@ -1,0 +1,55 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "budget_80",
+        "budget_100",
+        "lead_goal_reached",
+        "lead_goal_50",
+        "campaign_status",
+        "creator_action",
+        "payment_due",
+        "draft_submitted",
+        "info"
+      ],
+      "default": "info"
+    },
+    "title": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "campaign_id": {
+      "type": "string"
+    },
+    "campaign_name": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "success",
+        "critical"
+      ],
+      "default": "info"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    },
+    "action_url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "title",
+    "message"
+  ]
+}

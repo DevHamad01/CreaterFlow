@@ -1,0 +1,33 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user"
+      ],
+      "default": "user"
+    },
+    "user_type": {
+      "type": "string",
+      "enum": [
+        "company",
+        "creator",
+        "admin"
+      ],
+      "default": "company"
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "avatar_url": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "CampaignTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "target_audience": {
+      "type": "string"
+    },
+    "budget": {
+      "type": "number"
+    },
+    "key_messages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "creator_guidelines": {
+      "type": "string"
+    },
+    "content_direction": {
+      "type": "string"
+    },
+    "product": {
+      "type": "string"
+    },
+    "desired_outcome": {
+      "type": "string"
+    },
+    "tracking_base_url": {
+      "type": "string"
+    },
+    "lead_target": {
+      "type": "number"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "awareness",
+        "lead_gen",
+        "product_launch",
+        "thought_leadership",
+        "retargeting"
+      ],
+      "default": "lead_gen"
+    }
+  },
+  "required": [
+    "name",
+    "objective"
+  ]
+}

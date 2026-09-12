@@ -1,0 +1,77 @@
+{
+  "name": "Campaign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "company_id": {
+      "type": "string"
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "target_audience": {
+      "type": "string"
+    },
+    "budget": {
+      "type": "number"
+    },
+    "key_messages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "creator_guidelines": {
+      "type": "string"
+    },
+    "content_direction": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "recruiting",
+        "active",
+        "review",
+        "scheduled",
+        "live",
+        "completed",
+        "cancelled"
+      ],
+      "default": "draft"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "product": {
+      "type": "string"
+    },
+    "desired_outcome": {
+      "type": "string"
+    },
+    "tracking_base_url": {
+      "type": "string"
+    },
+    "lead_target": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "company_id",
+    "objective",
+    "status"
+  ]
+}

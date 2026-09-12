@@ -1,0 +1,58 @@
+{
+  "name": "Favorite",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "creator_avatar": {
+      "type": "string",
+      "format": "uri"
+    },
+    "creator_niche": {
+      "type": "string"
+    },
+    "creator_headline": {
+      "type": "string"
+    },
+    "creator_followers": {
+      "type": "number"
+    },
+    "creator_price": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "tag": {
+      "type": "string",
+      "enum": [
+        "",
+        "hot",
+        "warm",
+        "cold",
+        "contacted",
+        "negotiating",
+        "booked"
+      ],
+      "default": ""
+    },
+    "pipeline_stage": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "contacted",
+        "negotiating",
+        "contracted",
+        "passed"
+      ],
+      "default": "discovered"
+    }
+  },
+  "required": [
+    "creator_id"
+  ]
+}

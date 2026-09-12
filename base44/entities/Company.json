@@ -1,0 +1,44 @@
+{
+  "name": "Company",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "logo_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "industry": {
+      "type": "string"
+    },
+    "website": {
+      "type": "string",
+      "format": "uri"
+    },
+    "description": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "size": {
+      "type": "string"
+    },
+    "plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "managed"
+      ],
+      "default": "free"
+    }
+  },
+  "required": [
+    "name",
+    "industry"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "CampaignMetric",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "post_id": {
+      "type": "string"
+    },
+    "impressions": {
+      "type": "number",
+      "default": 0
+    },
+    "clicks": {
+      "type": "number",
+      "default": 0
+    },
+    "qualified_clicks": {
+      "type": "number",
+      "default": 0
+    },
+    "leads": {
+      "type": "number",
+      "default": 0
+    },
+    "pipeline_value": {
+      "type": "number",
+      "default": 0
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "campaign_id"
+  ]
+}

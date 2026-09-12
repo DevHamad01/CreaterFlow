@@ -1,0 +1,59 @@
+{
+  "name": "Post",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "campaign_creator_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "submitted",
+        "in_review",
+        "revision_requested",
+        "approved",
+        "rejected",
+        "scheduled",
+        "live"
+      ],
+      "default": "draft"
+    },
+    "post_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "scheduled_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "feedback": {
+      "type": "string"
+    },
+    "revision_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "campaign_id",
+    "creator_id",
+    "status"
+  ]
+}

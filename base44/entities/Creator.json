@@ -1,0 +1,117 @@
+{
+  "name": "Creator",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "avatar_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "headline": {
+      "type": "string"
+    },
+    "bio": {
+      "type": "string"
+    },
+    "niche": {
+      "type": "string",
+      "enum": [
+        "AI & SaaS",
+        "Sales & GTM",
+        "Marketing & Content",
+        "DevTools & Engineering",
+        "Fintech",
+        "HR & Recruiting",
+        "Product & Design",
+        "RevOps & Automation",
+        "Data & Analytics",
+        "Cybersecurity"
+      ]
+    },
+    "sub_niches": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "country": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "linkedin_followers": {
+      "type": "number"
+    },
+    "engagement_rate": {
+      "type": "number"
+    },
+    "audience_type": {
+      "type": "string"
+    },
+    "audience_industries": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "audience_geography": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "price_per_post": {
+      "type": "number"
+    },
+    "availability": {
+      "type": "string",
+      "enum": [
+        "available",
+        "limited",
+        "booked"
+      ],
+      "default": "available"
+    },
+    "rating": {
+      "type": "number",
+      "default": 4.5
+    },
+    "reviews_count": {
+      "type": "number",
+      "default": 0
+    },
+    "avg_impressions": {
+      "type": "number"
+    },
+    "avg_clicks": {
+      "type": "number"
+    },
+    "avg_leads": {
+      "type": "number"
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verified": {
+      "type": "boolean",
+      "default": true
+    },
+    "total_campaigns": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "headline",
+    "niche",
+    "linkedin_followers",
+    "price_per_post"
+  ]
+}

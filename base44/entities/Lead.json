@@ -1,0 +1,56 @@
+{
+  "name": "Lead",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "post_id": {
+      "type": "string"
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "value": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "qualified",
+        "contacted",
+        "converted",
+        "lost"
+      ],
+      "default": "new"
+    },
+    "source": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "status"
+  ]
+}

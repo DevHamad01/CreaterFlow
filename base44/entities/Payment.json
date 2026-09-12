@@ -1,0 +1,59 @@
+{
+  "name": "Payment",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "campaign_name": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "scheduled",
+        "paid",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "paid_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "invoice_number": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "company_charge",
+        "creator_payout"
+      ],
+      "default": "creator_payout"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "creator_id",
+    "amount",
+    "status"
+  ]
+}
