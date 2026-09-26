@@ -8,6 +8,13 @@
 *.log
 npm-debug.log*
 yarn-debug.log*
+
+# Rendered HTML dumps written by the state harnesses in .agent-logs/ (home-states,
+# creator-pages-states, auth-states, ...). The harness .mjs sources and the
+# product-audit notes are tracked; their .html output is not. Each harness run
+# rewrites every dump, which is why the last commit contained nothing but these.
+# The HTML files in dist/ are unaffected, so the deployed build is unchanged.
+/.agent-logs/*.html
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
