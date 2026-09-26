@@ -2,7 +2,37 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { auth } from '@/api/base44Client';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 
-const AuthContext = createContext();
+/**
+ * The signed-in user: Firebase identity fields plus whatever the app stores in
+ * the `users` document (full_name, company_name, phone, ...), so screens can
+ * read profile fields without a cast.
+ *
+ * @typedef {object} AuthUser
+ * @property {string} id
+ * @property {string} [email]
+ * @property {string} [displayName]
+ * @property {string} [photoURL]
+ * @property {string} [full_name]
+ * @property {string} [company_name]
+ * @property {string} [phone]
+ * @property {string} [user_type]
+ * @property {string} [role]
+ * @property {any} [extra]
+ *
+ * @typedef {object} AuthContextValue
+ * @property {AuthUser | null} user
+ * @property {boolean} isAuthenticated
+ * @property {boolean} isLoadingAuth
+ * @property {boolean} isLoadingPublicSettings
+ * @property {string | null} authError
+ * @property {boolean} authChecked
+ * @property {{ id: string, public_settings: Record<string, any> }} appPublicSettings
+ * @property {(shouldRedirect?: boolean) => void} logout
+ * @property {() => void} navigateToLogin
+ */
+
+/** @type {import('react').Context<AuthContextValue>} */
+const AuthContext = createContext(/** @type {any} */ (undefined));
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -69,9 +99,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
       authError,
@@ -85,6 +115,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+/** @returns {AuthContextValue} */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -92,3 +123,7 @@ export const useAuth = () => {
   }
   return context;
 };
+
+// Exported so state tests can supply a signed-in context value without booting
+// Firebase. Not used by app code.
+export { AuthContext };

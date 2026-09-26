@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { firestoreService } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, Loader2, AlertTriangle } from "lucide-react";
+import { FormNotice } from "@/components/FormNotice";
+import { Lock, Loader2, AlertTriangle, ArrowRight, KeyRound } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import { base44 } from "@/api/base44Client";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -14,23 +15,33 @@ export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
-    setLoading(true);
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setPending(true);
     try {
       await base44.auth.resetPassword({ resetToken, newPassword });
-      window.location.href = "/login";
+      window.location.href = "/login?password=reset";
     } catch (err) {
-      setError(err.message || "Failed to reset password");
+      setError(
+        /expired|invalid/i.test(err?.message || "")
+          ? "This reset link has expired. Request a new one and try again."
+          : err?.message || "We couldn't reset your password. Please try again."
+      );
     } finally {
-      setLoading(false);
+      setPending(false);
     }
   };
 
@@ -39,70 +50,90 @@ export default function ResetPassword() {
       <AuthLayout
         icon={AlertTriangle}
         title="Invalid reset link"
-        subtitle="This password reset link is missing or invalid"
+        subtitle="This password reset link is missing or incomplete"
         footer={
-          <Link to="/forgot-password" className="text-primary font-medium hover:underline">
+          <Link
+            to="/forgot-password"
+            className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"
+          >
             Request a new link
+            <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
           </Link>
         }
       >
-        <p className="text-sm text-foreground text-center">
-          The link you used appears to be incomplete. Please request a new password reset email.
-        </p>
+        <div className="text-center">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            The link you followed appears to be cut off. Reset links expire after 60 minutes —
+            request a fresh one and you'll be back in a minute.
+          </p>
+        </div>
       </AuthLayout>
     );
   }
 
   return (
     <AuthLayout
-      icon={Lock}
-      title="New password"
-      subtitle="Enter your new password below"
+      icon={KeyRound}
+      title="Choose a new password"
+      subtitle="Then you can log in with it right away"
+      footer={
+        <Link to="/login" className="font-semibold text-primary hover:underline">
+          Back to log in
+        </Link>
+      }
     >
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
-      )}
+      <FormNotice message={error} />
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="password">New Password</Label>
+          <Label htmlFor="password">New password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               id="password"
+              name="newPassword"
               type="password"
               autoComplete="new-password"
               autoFocus
-              placeholder="••••••••"
+              placeholder="At least 6 characters"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="pl-10 h-12"
+              className="pl-10"
               required
+              minLength={6}
             />
           </div>
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor="confirm">Confirm Password</Label>
+          <Label htmlFor="confirm">Confirm new password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               id="confirm"
+              name="confirmPassword"
               type="password"
               autoComplete="new-password"
-              placeholder="••••••••"
+              placeholder="Repeat your new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="pl-10 h-12"
+              className="pl-10"
               required
             />
           </div>
         </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-          {loading ? (
+
+        <Button type="submit" className="w-full" disabled={pending} aria-busy={pending}>
+          {pending ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Resetting...
+              <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />
+              Resetting…
             </>
           ) : (
             "Reset password"

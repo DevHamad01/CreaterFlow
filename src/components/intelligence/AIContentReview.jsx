@@ -1,16 +1,23 @@
 import { useState } from "react";
 import { reviewContentWithAI } from "@/lib/campaignAi";
-import { Sparkles, Loader2, Check, X, AlertCircle, FileCheck, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
+} from "@/components/ui/dialog";
+import {
+  Sparkles, Check, X, AlertCircle, FileCheck, RefreshCw, Loader2
+} from "lucide-react";
 
 /**
- * AI Content Review Modal — Differentiator #6
- * 
+ * AI Content Review — Differentiator #6
+ *
  * AI-assisted review of creator draft content.
  * Checks campaign requirements, brand guidelines, key messages, CTA, tone, clarity.
  * Shows passed/needs_revision + suggestions.
  * The company still has final approval authority.
- * 
- * Props: post, campaign, onApprove, onReject
+ *
+ * Props: post, campaign, onApprove, onReject, onClose
  */
 export default function AIContentReview({ post, campaign, onApprove, onReject, onClose }) {
   const [review, setReview] = useState(null);
@@ -34,105 +41,142 @@ export default function AIContentReview({ post, campaign, onApprove, onReject, o
   const failed = review?.checks?.filter((c) => !c.passed).length || 0;
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-slate-900">AI Content Review</h2>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose?.();
+      }}
+    >
+      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles aria-hidden="true" className="h-5 w-5 text-primary" />
+            AI Content Review
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Automated checks of {post.creator_name}'s draft against the campaign brief.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {/* Draft content preview */}
           <div>
-            <p className="text-xs font-medium text-slate-500 uppercase mb-2">Draft from {post.creator_name}</p>
-            <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Draft from {post.creator_name}
+            </p>
+            <div className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl bg-muted/60 p-4 text-sm">
               {post.content}
             </div>
           </div>
 
           {/* Run review button or results */}
           {!review && !loading && (
-            <div className="text-center py-6">
-              <p className="text-sm text-slate-600 mb-4">
-                Run AI review to check this draft against your campaign brief — key messages, CTA, tone, and clarity.
+            <div className="py-6 text-center">
+              <p className="mb-4 text-sm text-muted-foreground">
+                Run AI review to check this draft against your campaign brief — key messages, CTA,
+                tone, and clarity.
               </p>
               {error && (
-                <div className="mb-4 flex items-start gap-2 p-3 bg-amber-50 rounded-lg text-left">
-                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700">{error}</p>
-                </div>
+                <p
+                  role="alert"
+                  className="mb-4 flex items-start gap-2 rounded-lg bg-warning/10 p-3 text-left"
+                >
+                  <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning" />
+                  <span className="text-xs text-warning">{error}</span>
+                </p>
               )}
-              <button
-                onClick={runReview}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-              >
-                <Sparkles className="w-4 h-4" /> Run AI review
-              </button>
+              <Button onClick={runReview}>
+                <Sparkles aria-hidden="true" className="h-4 w-4" />
+                Run AI review
+              </Button>
             </div>
           )}
 
           {loading && (
-            <div className="flex flex-col items-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-3" />
-              <p className="text-sm text-slate-500">Analyzing draft against campaign requirements...</p>
+            <div className="space-y-3 py-4" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Analyzing draft against campaign requirements</span>
+              <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-primary" />
+                Analyzing draft against campaign requirements…
+              </p>
+              <Skeleton className="h-20 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
             </div>
           )}
 
           {review && (
             <>
               {/* Summary */}
-              <div className={`rounded-xl p-4 border ${review.status === "passed" ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
-                <div className="flex items-center gap-2 mb-2">
+              <div
+                role="status"
+                className={`rounded-xl border p-4 ${
+                  review.status === "passed"
+                    ? "border-success/25 bg-success/10"
+                    : "border-warning/25 bg-warning/10"
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
                   {review.status === "passed" ? (
-                    <FileCheck className="w-5 h-5 text-emerald-600" />
+                    <FileCheck aria-hidden="true" className="h-5 w-5 text-success" />
                   ) : (
-                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                    <AlertCircle aria-hidden="true" className="h-5 w-5 text-warning" />
                   )}
-                  <h3 className={`font-semibold text-sm ${review.status === "passed" ? "text-emerald-900" : "text-amber-900"}`}>
+                  <h3
+                    className={`text-sm font-semibold ${
+                      review.status === "passed" ? "text-success" : "text-warning"
+                    }`}
+                  >
                     {review.status === "passed" ? "Ready for approval" : "Needs revision"}
                   </h3>
                 </div>
-                <p className={`text-sm ${review.status === "passed" ? "text-emerald-700" : "text-amber-700"}`}>{review.summary}</p>
-                <div className="flex gap-4 mt-2 text-xs">
-                  <span className="text-emerald-600 font-medium">{passed} passed</span>
-                  <span className="text-amber-600 font-medium">{failed} need attention</span>
+                <p className={`text-sm ${review.status === "passed" ? "text-success" : "text-warning"}`}>
+                  {review.summary}
+                </p>
+                <div className="mt-2 flex gap-4 text-xs">
+                  <span className="font-medium text-success">{passed} passed</span>
+                  <span className="font-medium text-warning">{failed} need attention</span>
                 </div>
               </div>
 
               {/* Detailed checks */}
-              <div className="space-y-2">
+              <ul className="space-y-2">
                 {review.checks?.map((check, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl">
-                    {check.passed ? (
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-emerald-600" />
-                      </div>
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                        <X className="w-3 h-3 text-amber-600" />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900">{check.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{check.note}</p>
+                  <li
+                    key={i}
+                    className="flex items-start gap-3 rounded-xl border border-border/70 bg-card p-3"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                        check.passed ? "bg-success/15" : "bg-warning/15"
+                      }`}
+                    >
+                      {check.passed ? (
+                        <Check className="h-3 w-3 text-success" />
+                      ) : (
+                        <X className="h-3 w-3 text-warning" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        <span className="sr-only">{check.passed ? "Passed: " : "Failed: "}</span>
+                        {check.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{check.note}</p>
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
 
               {/* Suggestions */}
               {review.suggestions?.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-900 mb-2">Suggestions</h4>
+                  <h4 className="mb-2 text-sm font-semibold">Suggestions</h4>
                   <ul className="space-y-2">
                     {review.suggestions.map((s, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                        <span className="w-1 h-1 rounded-full bg-slate-400 flex-shrink-0 mt-2" />
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <span aria-hidden="true" className="mt-2 h-1 w-1 flex-shrink-0 rounded-full bg-primary" />
                         {s}
                       </li>
                     ))}
@@ -141,36 +185,35 @@ export default function AIContentReview({ post, campaign, onApprove, onReject, o
               )}
 
               {/* Re-run review */}
-              <button
-                onClick={runReview}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700"
-              >
-                <RefreshCw className="w-3 h-3" /> Re-run review
-              </button>
+              <Button variant="ghost" size="sm" onClick={runReview} disabled={loading}>
+                <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
+                Re-run review
+              </Button>
             </>
           )}
         </div>
 
         {/* Footer with approval actions */}
-        <div className="flex gap-2 p-4 border-t border-slate-200 bg-slate-50">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-white">
+        <DialogFooter className="border-t border-border bg-muted/50 px-5 py-4 sm:flex-row sm:justify-stretch">
+          <Button variant="outline" className="sm:flex-1" onClick={onClose}>
             Review later
-          </button>
-          <button
+          </Button>
+          <Button
+            className="border border-danger/30 bg-danger/10 text-danger hover:bg-danger/15 hover:text-danger sm:flex-1"
             onClick={() => onReject(post)}
-            className="flex-1 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 flex items-center justify-center gap-1.5"
           >
-            <X className="w-4 h-4" /> Request revision
-          </button>
-          <button
+            <X aria-hidden="true" className="h-4 w-4" />
+            Request revision
+          </Button>
+          <Button
+            className="bg-success text-success-foreground hover:bg-success/90 sm:flex-1"
             onClick={() => onApprove(post)}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 flex items-center justify-center gap-1.5"
           >
-            <Check className="w-4 h-4" /> Approve
-          </button>
-        </div>
-      </div>
-    </div>
+            <Check aria-hidden="true" className="h-4 w-4" />
+            Approve
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

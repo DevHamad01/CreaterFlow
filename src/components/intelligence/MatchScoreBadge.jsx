@@ -1,58 +1,116 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { computeCreatorMatch } from "@/lib/intelligence";
+import { X } from "lucide-react";
 
 /**
  * Match Score Badge with detailed breakdown.
- * Shows "94% Match" and explains WHY on hover/expand.
- * 
+ * Shows "94% Match" and explains WHY on expand.
+ *
  * Props: creator, campaign, size
  */
 export default function MatchScoreBadge({ creator, campaign, size = "sm" }) {
   const [expanded, setExpanded] = useState(false);
+  const containerRef = useRef(null);
+  const panelId = useId();
   const match = computeCreatorMatch(creator, campaign);
 
   const colorClass =
-    match.score >= 85 ? "text-emerald-700 bg-emerald-50"
-    : match.score >= 70 ? "text-blue-700 bg-blue-50"
-    : match.score >= 55 ? "text-amber-700 bg-amber-50"
-    : "text-slate-600 bg-slate-100";
+    match.score >= 85 ? "text-success bg-success/10"
+    : match.score >= 70 ? "text-primary bg-primary/10"
+    : match.score >= 55 ? "text-warning bg-warning/10"
+    : "text-muted-foreground bg-muted";
 
   const sizeClass = size === "lg" ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs";
 
+  useEffect(() => {
+    if (!expanded) return;
+    const onPointerDown = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setExpanded(false);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [expanded]);
+
   return (
-    <div className="relative">
+    <div className="relative inline-block" ref={containerRef}>
       <button
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpanded(!expanded); }}
-        className={`${sizeClass} font-semibold rounded-full ${colorClass} hover:opacity-80 transition-opacity flex items-center gap-1`}
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        }}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        className={`inline-flex items-center gap-1 rounded-full font-semibold transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${sizeClass} ${colorClass}`}
       >
-        <span>{match.score}%</span>
+        <span className="tabular-nums">{match.score}%</span>
         <span className="font-medium opacity-75">Match</span>
       </button>
 
       {expanded && (
-        <div className="absolute z-50 mt-2 right-0 w-72 bg-white rounded-xl border border-slate-200 shadow-lg p-4" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-slate-900">Why {match.score}% match?</h4>
-            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpanded(false); }} className="text-slate-400 hover:text-slate-600">×</button>
+        <div
+          id={panelId}
+          role="dialog"
+          aria-label={`Why ${match.score}% match`}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-border bg-card p-4 shadow-overlay"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold tracking-tight">Why {match.score}% match?</h4>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setExpanded(false);
+              }}
+              className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+              <span className="sr-only">Close match breakdown</span>
+            </button>
           </div>
-          <div className="space-y-2.5">
+          <ul className="space-y-2.5">
             {match.breakdown.map((f) => (
-              <div key={f.label}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-slate-600">{f.label}</span>
-                  <span className={`font-medium ${f.score >= 75 ? "text-emerald-600" : f.score >= 50 ? "text-amber-600" : "text-slate-500"}`}>
+              <li key={f.label}>
+                <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">{f.label}</span>
+                  <span
+                    className={`font-medium tabular-nums ${
+                      f.score >= 75 ? "text-success" : f.score >= 50 ? "text-warning" : "text-muted-foreground"
+                    }`}
+                  >
                     {f.score}/100
                   </span>
                 </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  role="progressbar"
+                  aria-label={`${f.label} match score`}
+                  aria-valuenow={f.score}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  className="h-1.5 overflow-hidden rounded-full bg-muted"
+                >
                   <div
-                    className={`h-full rounded-full ${f.score >= 75 ? "bg-emerald-500" : f.score >= 50 ? "bg-amber-400" : "bg-slate-300"}`}
+                    className={`h-full rounded-full ${
+                      f.score >= 75 ? "bg-success/60" : f.score >= 50 ? "bg-warning/60" : "bg-border"
+                    }`}
                     style={{ width: `${f.score}%` }}
                   />
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </div>

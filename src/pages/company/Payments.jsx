@@ -1,24 +1,75 @@
-import { useEffect, useState } from "react";
-import { firestoreService } from "@/lib/firestore-service";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import EmptyState from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Wallet, CheckCircle2, Clock, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Wallet, CheckCircle2, Clock, FileText, AlertTriangle, RefreshCw } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
 export default function Payments() {
   const { user } = useAuth();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (!user) return;
+  const load = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     base44.entities.Payment.filter({ created_by_id: user.id }, "-created_date")
-      .then(setPayments)
+      .then((rows) => setPayments(rows || []))
+      .catch((err) => {
+        console.error("Payments: load failed", err);
+        setError("We couldn't load your payments. Check your connection and try again.");
+      })
       .finally(() => setLoading(false));
   }, [user]);
 
-  if (loading) return <div className="animate-pulse space-y-4"><div className="h-8 bg-slate-200 rounded w-48" /><div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-slate-100 rounded-xl" />)}</div></div>;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading payments</span>
+        <div className="space-y-2.5">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+        <Skeleton className="h-64 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+        <EmptyState
+          icon={AlertTriangle}
+          title="We couldn't load your payments"
+          description={error}
+          action={
+            <Button onClick={load}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   const totalPaid = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const totalPending = payments.filter((p) => p.status === "pending" || p.status === "scheduled").reduce((s, p) => s + p.amount, 0);
@@ -26,41 +77,47 @@ export default function Payments() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Payments</h1>
-        <p className="text-sm text-slate-500 mt-1">Creator payouts and campaign spend</p>
-      </div>
+      <PageHeader
+        title="Payments"
+        icon={Wallet}
+        description="Creator payouts and campaign spend"
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total spend" value={`€${totalAll.toLocaleString()}`} icon={Wallet} accent="slate" />
-        <StatCard label="Paid" value={`€${totalPaid.toLocaleString()}`} icon={CheckCircle2} accent="emerald" />
-        <StatCard label="Pending" value={`€${totalPending.toLocaleString()}`} icon={Clock} accent="amber" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label="Total spend" value={`€${totalAll.toLocaleString()}`} icon={Wallet} accent="neutral" />
+        <StatCard label="Paid" value={`€${totalPaid.toLocaleString()}`} icon={CheckCircle2} accent="success" />
+        <StatCard label="Pending" value={`€${totalPending.toLocaleString()}`} icon={Clock} accent="warning" />
       </div>
 
       {payments.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200">
-          <EmptyState icon={Wallet} title="No payments yet" description="Creator payments will appear here once your campaigns go live." />
+        <div className="surface-card">
+            <EmptyState
+              illustration="earnings"
+              title="No payments yet"
+            description="Creator payments will appear here once your campaigns go live."
+          />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="surface-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+              <caption className="sr-only">Creator payouts for your campaigns</caption>
+              <thead className="bg-muted/70 text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium">Creator</th>
-                  <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">Campaign</th>
-                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Invoice</th>
-                  <th className="text-right px-4 py-3 font-medium">Amount</th>
-                  <th className="text-left px-4 py-3 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-3 text-left font-semibold">Creator</th>
+                  <th scope="col" className="hidden px-4 py-3 text-left font-semibold sm:table-cell">Campaign</th>
+                  <th scope="col" className="hidden px-4 py-3 text-left font-semibold md:table-cell">Invoice</th>
+                  <th scope="col" className="px-4 py-3 text-right font-semibold">Amount</th>
+                  <th scope="col" className="px-4 py-3 text-left font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border/70">
                 {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{p.creator_name}</td>
-                    <td className="px-4 py-3 text-slate-600 hidden sm:table-cell">{p.campaign_name}</td>
-                    <td className="px-4 py-3 text-slate-500 hidden md:table-cell">{p.invoice_number || "—"}</td>
-                    <td className="px-4 py-3 text-right font-medium text-slate-900">€{p.amount}</td>
+                  <tr key={p.id} className="transition-colors hover:bg-muted/50">
+                    <td className="px-4 py-3 font-semibold">{p.creator_name}</td>
+                    <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{p.campaign_name}</td>
+                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{p.invoice_number || "—"}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">€{p.amount}</td>
                     <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                   </tr>
                 ))}
@@ -70,11 +127,14 @@ export default function Payments() {
         </div>
       )}
 
-      <div className="bg-blue-50 rounded-2xl p-5 flex items-start gap-3">
-        <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+        <FileText aria-hidden="true" className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
         <div>
-          <p className="text-sm font-medium text-slate-900">Payments are handled automatically</p>
-          <p className="text-xs text-slate-600 mt-1">Naano manages creator payouts. Creators are paid within 24h of their post going live. No invoices or admin needed.</p>
+          <p className="text-sm font-semibold">Payments are handled automatically</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Naano manages creator payouts. Creators are paid within 24h of their post going live. No
+            invoices or admin needed.
+          </p>
         </div>
       </div>
     </div>

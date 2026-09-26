@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { firestoreService } from "@/lib/firestore-service";
 import { useAuth } from "@/lib/AuthContext";
 import { StatusBadge, FitScore } from "@/components/StatusBadge";
+import StatCard from "@/components/StatCard";
 import EmptyState from "@/components/EmptyState";
 import CampaignHealthBadge from "@/components/intelligence/CampaignHealthBadge";
 import SmartRecommendations from "@/components/intelligence/SmartRecommendations";
@@ -10,15 +10,39 @@ import AIContentReview from "@/components/intelligence/AIContentReview";
 import CampaignReport from "@/components/intelligence/CampaignReport";
 import BudgetRecommendations from "@/components/intelligence/BudgetRecommendations";
 import { generateCreatorContentAngles } from "@/lib/campaignAi";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Users, FileText, BarChart3, Target, Plus,
   Search, Check, X, MessageSquare, Loader2, ExternalLink,
-  TrendingUp, MousePointerClick, Wallet, Sparkles, Lightbulb
+  TrendingUp, MousePointerClick, Wallet, Sparkles, AlertTriangle, RefreshCw, SearchX
 } from "lucide-react";
 import {
   BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
+import { base44 } from "@/api/base44Client";
+import { CHART_COLORS, CHART_TOOLTIP, CHART_AXIS_TICK } from "@/lib/chartTheme";
+import { cn } from "@/lib/utils";
+
+const CHART = CHART_COLORS;
+const TOOLTIP = CHART_TOOLTIP;
+const AXIS_TICK = CHART_AXIS_TICK;
+
+const LEAD_COLORS = [CHART.primary, CHART.success, CHART.warning, CHART.iris, CHART.danger];
+
+const LEAD_STATUSES = ["new", "qualified", "contacted", "converted", "lost"];
+
+const STATUS_ACTIONS = {
+  draft: { to: "recruiting", label: "Start recruiting", icon: Users },
+  recruiting: { to: "active", label: "Activate campaign", icon: TrendingUp },
+  active: { to: "live", label: "Mark as live", icon: Sparkles },
+};
 
 export default function CampaignDetail() {
   const { id } = useParams();
@@ -31,17 +55,27 @@ export default function CampaignDetail() {
   const [leads, setLeads] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState("creators");
   const [showInvite, setShowInvite] = useState(false);
   const [allCreators, setAllCreators] = useState([]);
+  const [creatorsLoading, setCreatorsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [reviewingPost, setReviewingPost] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [aiReviewingPost, setAiReviewingPost] = useState(null);
   const [contentAngles, setContentAngles] = useState([]);
   const [loadingAngles, setLoadingAngles] = useState(false);
+  const [statusPending, setStatusPending] = useState(false);
+  const [invitingId, setInvitingId] = useState(null);
+  const [reviewingPending, setReviewingPending] = useState(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    setNotFound(false);
     Promise.all([
       base44.entities.Campaign.get(id),
       base44.entities.CampaignCreator.filter({ campaign_id: id }),
@@ -49,34 +83,75 @@ export default function CampaignDetail() {
       base44.entities.CampaignMetric.filter({ campaign_id: id }),
       base44.entities.Lead.filter({ campaign_id: id }, "-date"),
       base44.entities.Payment.filter({ campaign_id: id }),
-    ]).then(([c, cc, p, m, l, pay]) => {
-      setCampaign(c); setCampaignCreators(cc); setPosts(p); setMetrics(m); setLeads(l); setPayments(pay);
-    }).finally(() => setLoading(false));
+    ])
+      .then(([c, cc, p, m, l, pay]) => {
+        setCampaign(c); setCampaignCreators(cc || []); setPosts(p || []); setMetrics(m || []);
+        setLeads(l || []); setPayments(pay || []);
+      })
+      .catch((err) => {
+        console.error("CampaignDetail: load failed", err);
+        if (err?.message?.match(/not found|404/i)) setNotFound(true);
+        else setError("We couldn't load this campaign. Check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
   const loadCreators = async () => {
-    const c = await base44.entities.Creator.list("-linkedin_followers", 50);
-    setAllCreators(c);
+    setCreatorsLoading(true);
+    try {
+      const c = await base44.entities.Creator.list("-linkedin_followers", 50);
+      setAllCreators(c || []);
+    } catch (err) {
+      console.error("CampaignDetail: creator list failed", err);
+      toast({
+        title: "We couldn't load the creator directory",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatorsLoading(false);
+    }
+  };
+
+  const openInvite = () => {
+    setShowInvite(true);
+    if (allCreators.length === 0) loadCreators();
   };
 
   const inviteCreator = async (creator) => {
-    const fitScore = Math.floor(75 + Math.random() * 25);
-    await base44.entities.CampaignCreator.create({
-      campaign_id: id,
-      creator_id: creator.id,
-      creator_name: creator.name,
-      creator_avatar: creator.avatar_url,
-      creator_niche: creator.niche,
-      creator_followers: creator.linkedin_followers,
-      fit_score: fitScore,
-      price: creator.price_per_post,
-      status: "invited",
-      tracking_link: `${campaign?.tracking_base_url}/${creator.name.toLowerCase().replace(/\s+/g, "-")}`,
-      invited_date: new Date().toISOString().split("T")[0],
-    });
-    const cc = await base44.entities.CampaignCreator.filter({ campaign_id: id });
-    setCampaignCreators(cc);
-    setShowInvite(false);
+    setInvitingId(creator.id);
+    try {
+      const fitScore = Math.floor(75 + Math.random() * 25);
+      await base44.entities.CampaignCreator.create({
+        campaign_id: id,
+        creator_id: creator.id,
+        creator_name: creator.name,
+        creator_avatar: creator.avatar_url,
+        creator_niche: creator.niche,
+        creator_followers: creator.linkedin_followers,
+        fit_score: fitScore,
+        price: creator.price_per_post,
+        status: "invited",
+        tracking_link: `${campaign?.tracking_base_url}/${creator.name.toLowerCase().replace(/\s+/g, "-")}`,
+        invited_date: new Date().toISOString().split("T")[0],
+      });
+      const cc = await base44.entities.CampaignCreator.filter({ campaign_id: id });
+      setCampaignCreators(cc || []);
+      toast({ title: "Creator invited", description: `${creator.name} was added to the campaign.` });
+    } catch (err) {
+      console.error("CampaignDetail: invite failed", err);
+      toast({
+        title: "We couldn't send that invitation",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setInvitingId(null);
+    }
   };
 
   const reviewPost = async (post, action) => {
@@ -84,41 +159,146 @@ export default function CampaignDetail() {
       ? { status: "approved", feedback: feedback || "Approved" }
       : { status: "revision_requested", feedback: feedback || "Please revise" };
 
-    await base44.entities.Post.update(post.id, updates);
-    // Update campaign creator status
-    if (action === "approve") {
-      await base44.entities.CampaignCreator.update(post.campaign_creator_id, { status: "approved" });
-    } else {
-      await base44.entities.CampaignCreator.update(post.campaign_creator_id, { status: "revision_requested" });
+    setReviewingPending(post.id);
+    try {
+      await base44.entities.Post.update(post.id, updates);
+      // Update campaign creator status
+      await base44.entities.CampaignCreator.update(post.campaign_creator_id, {
+        status: action === "approve" ? "approved" : "revision_requested",
+      });
+      const p = await base44.entities.Post.filter({ campaign_id: id });
+      setPosts(p || []);
+      const cc = await base44.entities.CampaignCreator.filter({ campaign_id: id });
+      setCampaignCreators(cc || []);
+      setReviewingPost(null);
+      setFeedback("");
+      toast({
+        title: action === "approve" ? "Draft approved" : "Revision requested",
+        description: post.creator_name,
+      });
+    } catch (err) {
+      console.error("CampaignDetail: review failed", err);
+      toast({
+        title: "We couldn't save your review",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setReviewingPending(null);
     }
-    const p = await base44.entities.Post.filter({ campaign_id: id });
-    setPosts(p);
-    const cc = await base44.entities.CampaignCreator.filter({ campaign_id: id });
-    setCampaignCreators(cc);
-    setReviewingPost(null);
-    setFeedback("");
   };
 
   const updateCampaignStatus = async (newStatus) => {
-    await base44.entities.Campaign.update(id, { status: newStatus });
-    setCampaign({ ...campaign, status: newStatus });
+    setStatusPending(true);
+    try {
+      await base44.entities.Campaign.update(id, { status: newStatus });
+      setCampaign((prev) => ({ ...prev, status: newStatus }));
+      toast({
+        title: "Campaign updated",
+        description: `Status is now ${newStatus}.`,
+      });
+    } catch (err) {
+      console.error("CampaignDetail: status update failed", err);
+      toast({
+        title: "We couldn't update the campaign",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatusPending(false);
+    }
   };
 
   const loadContentAngles = async () => {
-    if (contentAngles.length > 0 || loadingAngles) return;
+    if (loadingAngles) return;
     setLoadingAngles(true);
     try {
       const result = await generateCreatorContentAngles(campaignCreators, campaign);
       setContentAngles(result.angles || []);
+      if (!result.angles?.length) {
+        toast({
+          title: "No content angles generated",
+          description: "Try again once the brief has more detail.",
+        });
+      }
     } catch (err) {
-      // silent fail — angles are optional
+      console.error("CampaignDetail: content angles failed", err);
+      toast({
+        title: "We couldn't generate content angles",
+        description: "This is optional — you can still brief creators manually.",
+        variant: "destructive",
+      });
     } finally {
       setLoadingAngles(false);
     }
   };
 
-  if (loading) return <div className="animate-pulse space-y-4"><div className="h-8 bg-slate-200 rounded w-64" /><div className="h-64 bg-slate-100 rounded-2xl" /></div>;
-  if (!campaign) return <EmptyState title="Campaign not found" />;
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading campaign</span>
+        <Skeleton className="h-4 w-40" />
+        <div className="surface-card space-y-3 p-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-3/4" />
+          <div className="flex gap-4">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
+        </div>
+        <Skeleton className="h-11 rounded-xl" />
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || notFound) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/app/campaigns")}>
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Back to campaigns
+        </Button>
+        <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+          <EmptyState
+            icon={AlertTriangle}
+            title={notFound ? "Campaign not found" : "We couldn't load this campaign"}
+            description={
+              notFound
+                ? "This campaign may have been deleted, or you may not have access to it."
+                : error
+            }
+            action={
+              notFound ? (
+                <Button asChild>
+                  <Link to="/app/campaigns">Back to campaigns</Link>
+                </Button>
+              ) : (
+                <Button onClick={load}>
+                  <RefreshCw aria-hidden="true" className="h-4 w-4" />
+                  Try again
+                </Button>
+              )
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (!campaign) return null;
 
   const totalImpressions = metrics.reduce((s, m) => s + (m.impressions || 0), 0);
   const totalClicks = metrics.reduce((s, m) => s + (m.clicks || 0), 0);
@@ -136,18 +316,26 @@ export default function CampaignDetail() {
     ...(campaign.status === "completed" ? [{ id: "report", label: "AI Report", icon: Sparkles }] : []),
   ];
 
+  const statusAction = STATUS_ACTIONS[campaign.status];
+  const reviewablePosts = posts.filter((p) => p.status === "submitted" || p.status === "in_review");
+  const inviteCandidates = allCreators.filter(
+    (c) =>
+      c.name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.niche?.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
-      <button onClick={() => navigate("/app/campaigns")} className="text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1">
-        <ArrowLeft className="w-4 h-4" /> Back to campaigns
-      </button>
+      <Button variant="ghost" size="sm" onClick={() => navigate("/app/campaigns")} className="-ml-2">
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        Back to campaigns
+      </Button>
 
-      {/* Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+      <div className="surface-card surface-card-strong p-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-slate-900">{campaign.name}</h1>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{campaign.name}</h1>
               <StatusBadge status={campaign.status} />
               {["active", "recruiting", "review", "live"].includes(campaign.status) && (
                 <CampaignHealthBadge
@@ -159,51 +347,43 @@ export default function CampaignDetail() {
                 />
               )}
             </div>
-            <p className="text-slate-600">{campaign.objective}</p>
-            <div className="flex flex-wrap gap-4 mt-3 text-sm text-slate-500">
-              <span>Budget: €{campaign.budget?.toLocaleString() || 0}</span>
+            <p className="text-muted-foreground">{campaign.objective}</p>
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Wallet aria-hidden="true" className="h-3.5 w-3.5" />
+                Budget €{campaign.budget?.toLocaleString() || 0}
+              </span>
               <span>Product: {campaign.product}</span>
               {campaign.start_date && <span>Start: {campaign.start_date}</span>}
             </div>
           </div>
-          <div className="flex gap-2">
-            {campaign.status === "draft" && (
-              <button onClick={() => updateCampaignStatus("recruiting")} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
-                Start recruiting
-              </button>
-            )}
-            {campaign.status === "recruiting" && (
-              <button onClick={() => updateCampaignStatus("active")} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
-                Activate campaign
-              </button>
-            )}
-            {campaign.status === "active" && (
-              <button onClick={() => updateCampaignStatus("live")} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">
-                Mark as live
-              </button>
-            )}
-          </div>
+          {statusAction && (
+            <Button
+              onClick={() => updateCampaignStatus(statusAction.to)}
+              disabled={statusPending}
+              className={cn(
+                statusAction.to === "live" && "bg-success text-success-foreground hover:bg-success/90"
+              )}
+            >
+              {statusPending ? (
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              ) : (
+                <statusAction.icon aria-hidden="true" className="h-4 w-4" />
+              )}
+              {statusAction.label}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[
-          { label: "Creators", value: campaignCreators.length, icon: Users, color: "text-blue-600" },
-          { label: "Impressions", value: totalImpressions.toLocaleString(), icon: TrendingUp, color: "text-purple-600" },
-          { label: "Clicks", value: totalClicks, icon: MousePointerClick, color: "text-emerald-600" },
-          { label: "Leads", value: totalLeads, icon: Target, color: "text-amber-600" },
-          { label: "Spend", value: `€${totalSpend.toLocaleString()}`, icon: Wallet, color: "text-slate-600" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4">
-            <s.icon className={`w-4 h-4 ${s.color} mb-2`} />
-            <p className="text-lg font-bold text-slate-900">{s.value}</p>
-            <p className="text-xs text-slate-500">{s.label}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatCard dense label="Creators" value={campaignCreators.length} icon={Users} accent="primary" />
+        <StatCard dense label="Impressions" value={totalImpressions.toLocaleString()} icon={TrendingUp} accent="iris" />
+        <StatCard dense label="Clicks" value={totalClicks} icon={MousePointerClick} accent="success" />
+        <StatCard dense label="Leads" value={totalLeads} icon={Target} accent="warning" />
+        <StatCard dense label="Spend" value={`€${totalSpend.toLocaleString()}`} icon={Wallet} accent="neutral" />
       </div>
 
-      {/* Smart Recommendations */}
       {["active", "recruiting", "review", "live"].includes(campaign.status) && allCreators.length > 0 && (
         <SmartRecommendations
           campaign={campaign}
@@ -213,458 +393,679 @@ export default function CampaignDetail() {
         />
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1 border-b border-slate-200">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${tab === t.id ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-900"}`}
-          >
-            <t.icon className="w-4 h-4" />
-            {t.label}
-            {t.count !== undefined && <span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded-full">{t.count}</span>}
-          </button>
-        ))}
+      <div
+        role="tablist"
+        aria-label="Campaign sections"
+        className="no-scrollbar -mb-px flex gap-1 overflow-x-auto border-b border-border/80"
+      >
+        {tabs.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`tab-${t.id}`}
+              aria-selected={active}
+              aria-controls={`panel-${t.id}`}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+              )}
+            >
+              <t.icon aria-hidden="true" className="h-4 w-4" />
+              {t.label}
+              {t.count !== undefined && (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
+                    active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Tab content */}
-      {tab === "creators" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">Assigned creators</h2>
-            <button onClick={() => { setShowInvite(true); loadCreators(); }} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">
-              <Plus className="w-4 h-4" /> Invite creators
-            </button>
-          </div>
-
-          {campaignCreators.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200">
-              <EmptyState icon={Users} title="No creators yet" description="Invite creators from the marketplace to join this campaign." action={<button onClick={() => { setShowInvite(true); loadCreators(); }} className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium">Invite creators</button>} />
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={-1}>
+        {tab === "creators" && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-semibold tracking-tight">Assigned creators</h2>
+              <Button onClick={openInvite}>
+                <Plus aria-hidden="true" className="h-4 w-4" />
+                Invite creators
+              </Button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {campaignCreators.map((cc) => (
-                <div key={cc.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
-                  <img src={cc.creator_avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${cc.creator_name}&backgroundColor=2563eb`} alt="" className="w-10 h-10 rounded-full bg-slate-100" />
-                  <div className="flex-1 min-w-0">
-                    <Link to={`/creators/${cc.creator_id}`} className="font-medium text-slate-900 hover:text-blue-600">{cc.creator_name}</Link>
-                    <p className="text-xs text-slate-500">{cc.creator_niche} · {cc.creator_followers?.toLocaleString()} followers · €{cc.price}</p>
-                  </div>
-                  <FitScore score={cc.fit_score} />
-                  <StatusBadge status={cc.status} />
-                </div>
-              ))}
-            </div>
-          )}
 
-          {/* Invite modal */}
-          {showInvite && (
-            <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowInvite(false)}>
-              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <div className="p-5 border-b border-slate-200">
-                  <h3 className="font-semibold text-slate-900">Invite creators</h3>
-                  <div className="relative mt-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search creators..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 text-sm" />
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                  {allCreators.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.niche?.toLowerCase().includes(search.toLowerCase())).map((c) => {
-                    const already = campaignCreators.some((cc) => cc.creator_id === c.id);
-                    return (
-                      <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
-                        <img src={c.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${c.name}&backgroundColor=2563eb`} alt="" className="w-9 h-9 rounded-full bg-slate-100" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900">{c.name}</p>
-                          <p className="text-xs text-slate-500">{c.niche} · €{c.price_per_post}/post</p>
-                        </div>
-                        {already ? (
-                          <span className="text-xs text-slate-400">Invited</span>
-                        ) : (
-                          <button onClick={() => inviteCreator(c)} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">Invite</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+            {campaignCreators.length === 0 ? (
+              <div className="surface-card">
+                <EmptyState
+                  icon={Users}
+                  title="No creators yet"
+                  description="Invite creators from the marketplace to join this campaign."
+                  action={
+                    <Button onClick={openInvite}>
+                      <Plus aria-hidden="true" className="h-4 w-4" />
+                      Invite creators
+                    </Button>
+                  }
+                />
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "brief" && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">Objective</h3>
-            <p className="text-sm text-slate-700">{campaign.objective}</p>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">Target audience</h3>
-            <p className="text-sm text-slate-700">{campaign.target_audience}</p>
-          </div>
-          {campaign.key_messages?.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 mb-2">Key messages</h3>
-              <ul className="space-y-1.5">
-                {campaign.key_messages.map((m, i) => <li key={i} className="text-sm text-slate-700 flex items-start gap-2"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /> {m}</li>)}
-              </ul>
-            </div>
-          )}
-          {campaign.creator_guidelines && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 mb-2">Creator guidelines</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">{campaign.creator_guidelines}</p>
-            </div>
-          )}
-          {campaign.content_direction && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 mb-2">Content direction</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">{campaign.content_direction}</p>
-            </div>
-          )}
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">Tracking</h3>
-            <p className="text-sm text-slate-700 font-mono bg-slate-50 px-3 py-2 rounded-lg">{campaign.tracking_base_url}</p>
-          </div>
-
-          {/* Creator-specific content angles */}
-          {campaignCreators.length > 0 && (
-            <div className="bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-2xl border border-violet-100 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-violet-600" />
-                  <h3 className="font-semibold text-slate-900 text-sm">Creator-specific content angles</h3>
-                </div>
-                <button
-                  onClick={loadContentAngles}
-                  disabled={loadingAngles}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50"
-                >
-                  {loadingAngles ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {contentAngles.length > 0 ? "Regenerate" : "Generate angles"}
-                </button>
-              </div>
-              {contentAngles.length > 0 ? (
-                <div className="space-y-3">
-                  {contentAngles.map((angle, i) => (
-                    <div key={i} className="bg-white rounded-xl border border-slate-200 p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium text-slate-900 text-sm">{angle.creator_name}</span>
-                        <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">{angle.angle_name}</span>
-                      </div>
-                      <p className="text-sm text-slate-700 mb-2">{angle.angle_description}</p>
-                      {angle.suggested_hook && (
-                        <p className="text-xs text-slate-500 italic mb-2">Hook: &quot;{angle.suggested_hook}&quot;</p>
-                      )}
-                      {angle.key_talking_points?.length > 0 && (
-                        <ul className="space-y-1">
-                          {angle.key_talking_points.map((pt, j) => (
-                            <li key={j} className="text-xs text-slate-600 flex items-start gap-1.5">
-                              <span className="w-1 h-1 rounded-full bg-violet-400 flex-shrink-0 mt-1.5" /> {pt}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  Generate unique content angles for each creator based on their niche, audience, and expertise. No two creators get identical instructions.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "drafts" && (
-        <div className="space-y-3">
-          {posts.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200">
-              <EmptyState icon={MessageSquare} title="No drafts yet" description="Creator drafts will appear here for your review." />
-            </div>
-          ) : (
-            posts.map((post) => (
-              <div key={post.id} className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-900">{post.creator_name}</span>
-                    <StatusBadge status={post.status} />
-                  </div>
-                  {post.published_date && <span className="text-xs text-slate-500">Published: {post.published_date}</span>}
-                  {post.scheduled_date && <span className="text-xs text-slate-500">Scheduled: {post.scheduled_date}</span>}
-                </div>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap mb-3 line-clamp-4">{post.content}</p>
-                {post.post_url && (
-                  <a href={post.post_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mb-3">
-                    <ExternalLink className="w-3 h-3" /> View live post
-                  </a>
-                )}
-                {post.feedback && (
-                  <div className="mt-2 p-2 bg-slate-50 rounded-lg text-xs text-slate-600">
-                    <span className="font-medium">Feedback:</span> {post.feedback}
-                  </div>
-                )}
-                {(post.status === "submitted" || post.status === "in_review") && (
-                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
-                    <button onClick={() => setAiReviewingPost(post)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100">
-                      <Sparkles className="w-4 h-4" /> AI Review
-                    </button>
-                    <button onClick={() => setReviewingPost(post)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                      Review & feedback
-                    </button>
-                    <button onClick={() => reviewPost(post, "approve")} className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 flex items-center gap-1">
-                      <Check className="w-4 h-4" /> Approve
-                    </button>
-                    <button onClick={() => reviewPost(post, "reject")} className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 flex items-center gap-1">
-                      <X className="w-4 h-4" /> Reject
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-
-          {/* Review modal */}
-          {reviewingPost && (
-            <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setReviewingPost(null)}>
-              <div className="bg-white rounded-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
-                <h3 className="font-semibold text-slate-900 mb-2">Review draft from {reviewingPost.creator_name}</h3>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 p-4 rounded-lg mb-4 max-h-48 overflow-y-auto">{reviewingPost.content}</p>
-                <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="Enter feedback for the creator..." rows={3} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm mb-4 resize-none" />
-                <div className="flex gap-2">
-                  <button onClick={() => setReviewingPost(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Cancel</button>
-                  <button onClick={() => reviewPost(reviewingPost, "approve")} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Approve with feedback</button>
-                  <button onClick={() => reviewPost(reviewingPost, "reject")} className="flex-1 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100">Request revision</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* AI Content Review modal */}
-          {aiReviewingPost && (
-            <AIContentReview
-              post={aiReviewingPost}
-              campaign={campaign}
-              onClose={() => setAiReviewingPost(null)}
-              onApprove={(post) => { reviewPost(post, "approve"); setAiReviewingPost(null); }}
-              onReject={(post) => { reviewPost(post, "reject"); setAiReviewingPost(null); }}
-            />
-          )}
-        </div>
-      )}
-
-      {tab === "analytics" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: "Impressions", value: totalImpressions.toLocaleString(), icon: TrendingUp },
-              { label: "Clicks", value: totalClicks, icon: MousePointerClick },
-              { label: "Leads", value: totalLeads, icon: Target },
-              { label: "Pipeline", value: `€${(totalPipeline / 1000).toFixed(1)}K`, icon: Wallet },
-            ].map((s) => (
-              <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-5">
-                <s.icon className="w-4 h-4 text-blue-600 mb-2" />
-                <p className="text-2xl font-bold text-slate-900">{s.value}</p>
-                <p className="text-xs text-slate-500">{s.label}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Funnel chart */}
-          {metrics.length > 0 && (
-            <div className="grid lg:grid-cols-3 gap-4">
-              {/* Per-creator performance bar chart */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 lg:col-span-2">
-                <h3 className="font-semibold text-slate-900 mb-4">Per-creator performance</h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <ReBarChart data={campaignCreators.map((cc) => {
-                    const ccMetrics = metrics.filter((m) => m.creator_id === cc.creator_id);
-                    return {
-                      name: cc.creator_name?.split(" ")[0] || "Creator",
-                      impressions: ccMetrics.reduce((s, m) => s + (m.impressions || 0), 0),
-                      clicks: ccMetrics.reduce((s, m) => s + (m.clicks || 0), 0),
-                      leads: ccMetrics.reduce((s, m) => s + (m.leads || 0), 0),
-                    };
-                  })}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="impressions" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="clicks" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="leads" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  </ReBarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Lead status pie chart */}
-              {leads.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                  <h3 className="font-semibold text-slate-900 mb-4">Lead breakdown</h3>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={["new", "qualified", "contacted", "converted", "lost"].map((status) => ({
-                          name: status.charAt(0).toUpperCase() + status.slice(1),
-                          value: leads.filter((l) => l.status === status).length,
-                        })).filter((d) => d.value > 0)}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="45%"
-                        outerRadius={80}
-                        innerRadius={40}
-                        label={({ name, value }) => `${name}: ${value}`}
-                        labelLine={false}
-                      >
-                        {["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"].map((color, i) => (
-                          <Cell key={i} fill={color} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Trend area chart */}
-          {metrics.length > 0 && metrics.some((m) => m.date) && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <h3 className="font-semibold text-slate-900 mb-4">Performance trend over time</h3>
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={Object.entries(
-                  metrics.reduce((acc, m) => {
-                    const d = m.date || "N/A";
-                    if (!acc[d]) acc[d] = { date: d, impressions: 0, clicks: 0, leads: 0 };
-                    acc[d].impressions += m.impressions || 0;
-                    acc[d].clicks += m.clicks || 0;
-                    acc[d].leads += m.leads || 0;
-                    return acc;
-                  }, {})
-                ).map(([date, vals]) => ({ ...vals, date: date.slice(5) })).sort((a, b) => a.date.localeCompare(b.date))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="impressions" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
-                  <Area type="monotone" dataKey="clicks" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
-                  <Area type="monotone" dataKey="leads" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.1} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Creator performance</h3>
-            {metrics.length === 0 ? (
-              <EmptyState icon={BarChart3} title="No analytics yet" description="Performance data will appear once posts go live." />
             ) : (
-              <div className="space-y-2">
-                {metrics.map((m) => {
-                  const cc = campaignCreators.find((c) => c.creator_id === m.creator_id);
-                  return (
-                    <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <span className="text-sm font-medium text-slate-900">{cc?.creator_name || "Creator"}</span>
-                      <div className="flex gap-6 text-sm">
-                        <span className="text-slate-600">{m.impressions?.toLocaleString()} <span className="text-xs text-slate-400">impr</span></span>
-                        <span className="text-slate-600">{m.clicks} <span className="text-xs text-slate-400">clicks</span></span>
-                        <span className="text-slate-600">{m.leads} <span className="text-xs text-slate-400">leads</span></span>
-                        <span className="font-medium text-slate-900">€{m.pipeline_value?.toLocaleString()}</span>
-                      </div>
+              <ul className="space-y-2">
+                {campaignCreators.map((cc) => (
+                  <li key={cc.id} className="surface-card flex flex-wrap items-center gap-4 p-4">
+                    <img
+                      src={cc.creator_avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cc.creator_name || "creator")}&backgroundColor=2563eb`}
+                      alt=""
+                      className="h-10 w-10 flex-shrink-0 rounded-full border border-border/60 bg-muted object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        to={`/creators/${cc.creator_id}`}
+                        className="truncate font-semibold transition-colors hover:text-primary"
+                      >
+                        {cc.creator_name}
+                      </Link>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {cc.creator_niche}
+                        {cc.creator_followers ? ` · ${cc.creator_followers.toLocaleString()} followers` : ""}
+                        {cc.price ? ` · €${cc.price}` : ""}
+                      </p>
                     </div>
-                  );
-                })}
+                    <FitScore score={cc.fit_score} />
+                    <StatusBadge status={cc.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <Dialog open={showInvite} onOpenChange={(open) => !open && setShowInvite(null)}>
+              <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Invite creators</DialogTitle>
+                  <DialogDescription>
+                    {campaignCreators.length} of your creators are already on this campaign.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="relative">
+                  <Search
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search creators..."
+                    aria-label="Search creators to invite"
+                    className="pl-10"
+                  />
+                </div>
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                  {creatorsLoading ? (
+                    [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)
+                  ) : inviteCandidates.length === 0 ? (
+                    <EmptyState
+                      icon={SearchX}
+                      title="No creators match that search"
+                      description="Try a different name or niche."
+                    />
+                  ) : (
+                    inviteCandidates.map((c) => {
+                      const already = campaignCreators.some((cc) => cc.creator_id === c.id);
+                      const inviting = invitingId === c.id;
+                      return (
+                        <div
+                          key={c.id}
+                          className="flex items-center gap-3 rounded-xl border border-border/70 p-3 transition-colors hover:border-primary/25 hover:bg-muted/50"
+                        >
+                          <img
+                            src={c.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(c.name || "creator")}&backgroundColor=2563eb`}
+                            alt=""
+                            className="h-9 w-9 flex-shrink-0 rounded-full border border-border/60 bg-muted object-cover"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{c.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {c.niche}
+                              {c.price_per_post ? ` · €${c.price_per_post}/post` : ""}
+                            </p>
+                          </div>
+                          {already ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                              <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                              Invited
+                            </span>
+                          ) : (
+                            <Button size="sm" onClick={() => inviteCreator(c)} disabled={inviting}>
+                              {inviting && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
+                              Invite
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+
+        {tab === "brief" && (
+          <div className="surface-card space-y-6 p-6">
+            <div>
+              <h3 className="mb-2 text-sm font-semibold">Objective</h3>
+              <p className="text-sm text-muted-foreground">{campaign.objective}</p>
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-semibold">Target audience</h3>
+              <p className="text-sm text-muted-foreground">{campaign.target_audience}</p>
+            </div>
+            {campaign.key_messages?.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Key messages</h3>
+                <ul className="space-y-1.5">
+                  {campaign.key_messages.map((m, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Check aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                      {m}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {campaign.creator_guidelines && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Creator guidelines</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{campaign.creator_guidelines}</p>
+              </div>
+            )}
+            {campaign.content_direction && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Content direction</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{campaign.content_direction}</p>
+              </div>
+            )}
+            <div>
+              <h3 className="mb-2 text-sm font-semibold">Tracking</h3>
+              <p className="break-all rounded-lg bg-muted px-3 py-2 font-mono text-sm text-muted-foreground">
+                {campaign.tracking_base_url}
+              </p>
+            </div>
+
+            {campaignCreators.length > 0 && (
+              <div className="rounded-2xl border border-iris/25 bg-gradient-to-br from-iris/10 via-background to-background p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
+                    <Sparkles aria-hidden="true" className="h-4 w-4 text-iris" />
+                    Creator-specific content angles
+                  </h3>
+                  <Button
+                    size="sm"
+                    onClick={loadContentAngles}
+                    disabled={loadingAngles}
+                    className="bg-iris text-iris-foreground hover:bg-iris/90"
+                  >
+                    {loadingAngles ? (
+                      <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+                    )}
+                    {contentAngles.length > 0 ? "Regenerate" : "Generate angles"}
+                  </Button>
+                </div>
+                {loadingAngles ? (
+                  <div className="space-y-3">
+                    {[0, 1].map((i) => (
+                      <Skeleton key={i} className="h-24 rounded-xl" />
+                    ))}
+                  </div>
+                ) : contentAngles.length > 0 ? (
+                  <ul className="space-y-3">
+                    {contentAngles.map((angle, i) => (
+                      <li key={i} className="surface-card p-4">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold">{angle.creator_name}</span>
+                          <span className="rounded-full bg-iris/10 px-2 py-0.5 text-xs font-semibold text-iris">
+                            {angle.angle_name}
+                          </span>
+                        </div>
+                        <p className="mb-2 text-sm text-muted-foreground">{angle.angle_description}</p>
+                        {angle.suggested_hook && (
+                          <p className="mb-2 text-xs italic text-muted-foreground">Hook: “{angle.suggested_hook}”</p>
+                        )}
+                        {angle.key_talking_points?.length > 0 && (
+                          <ul className="space-y-1">
+                            {angle.key_talking_points.map((pt, j) => (
+                              <li key={j} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <span aria-hidden="true" className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-iris/60" />
+                                {pt}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Generate unique content angles for each creator based on their niche, audience, and
+                    expertise. No two creators get identical instructions.
+                  </p>
+                )}
               </div>
             )}
           </div>
+        )}
 
-          {metrics.length > 0 && (
-            <BudgetRecommendations campaignCreators={campaignCreators} metrics={metrics} />
-          )}
-        </div>
-      )}
+        {tab === "drafts" && (
+          <div className="space-y-3">
+            {posts.length === 0 ? (
+              <div className="surface-card">
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No drafts yet"
+                  description="Creator drafts will appear here for your review."
+                />
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {posts.map((post) => {
+                  const busy = reviewingPending === post.id;
+                  return (
+                    <li key={post.id} className={cn("surface-card p-5", busy && "opacity-70")}>
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{post.creator_name}</span>
+                          <StatusBadge status={post.status} />
+                        </div>
+                        {post.published_date && (
+                          <span className="text-xs text-muted-foreground">Published: {post.published_date}</span>
+                        )}
+                        {post.scheduled_date && (
+                          <span className="text-xs text-muted-foreground">Scheduled: {post.scheduled_date}</span>
+                        )}
+                      </div>
+                      <p className="mb-3 line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {post.content}
+                      </p>
+                      {post.post_url && (
+                        <a
+                          href={post.post_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80"
+                        >
+                          <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                          View live post
+                          <span className="sr-only">from {post.creator_name} (opens in a new tab)</span>
+                        </a>
+                      )}
+                      {post.feedback && (
+                        <p className="mt-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">Feedback:</span> {post.feedback}
+                        </p>
+                      )}
+                      {(post.status === "submitted" || post.status === "in_review") && (
+                        <div className="mt-3 flex flex-wrap gap-2 border-t border-border/70 pt-3">
+                          <Button size="sm" variant="secondary" onClick={() => setAiReviewingPost(post)}>
+                            <Sparkles aria-hidden="true" className="h-4 w-4 text-iris" />
+                            AI Review
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1" onClick={() => setReviewingPost(post)}>
+                            Review &amp; feedback
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => reviewPost(post, "approve")}
+                            disabled={busy}
+                            className="bg-success text-success-foreground hover:bg-success/90"
+                          >
+                            {busy ? (
+                              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check aria-hidden="true" className="h-4 w-4" />
+                            )}
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => reviewPost(post, "reject")}
+                            disabled={busy}
+                            className="border-danger/30 text-danger hover:bg-danger/10"
+                          >
+                            <X aria-hidden="true" className="h-4 w-4" />
+                            Request revision
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
-      {tab === "leads" && (
-        <div className="space-y-3">
-          {leads.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200">
-              <EmptyState icon={Target} title="No leads yet" description="Leads from your campaign posts will appear here." />
+            {reviewablePosts.length > 0 && reviewablePosts.length < posts.length && (
+              <p className="text-xs text-muted-foreground">
+                {reviewablePosts.length} of {posts.length} drafts are waiting on your review.
+              </p>
+            )}
+
+            <Dialog
+              open={Boolean(reviewingPost)}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setReviewingPost(null);
+                  setFeedback("");
+                }
+              }}
+            >
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Review draft from {reviewingPost?.creator_name}</DialogTitle>
+                  <DialogDescription>
+                    Add feedback the creator will see, then approve or request a revision.
+                  </DialogDescription>
+                </DialogHeader>
+                <p className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                  {reviewingPost?.content}
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="review-feedback">Feedback</Label>
+                  <Textarea
+                    id="review-feedback"
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="Enter feedback for the creator..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setReviewingPost(null);
+                      setFeedback("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-success text-success-foreground hover:bg-success/90"
+                    onClick={() => reviewPost(reviewingPost, "approve")}
+                    disabled={reviewingPending === reviewingPost?.id}
+                  >
+                    {reviewingPending === reviewingPost?.id ? (
+                      <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check aria-hidden="true" className="h-4 w-4" />
+                    )}
+                    Approve with feedback
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-danger/30 text-danger hover:bg-danger/10"
+                    onClick={() => reviewPost(reviewingPost, "reject")}
+                    disabled={reviewingPending === reviewingPost?.id}
+                  >
+                    <X aria-hidden="true" className="h-4 w-4" />
+                    Request revision
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {aiReviewingPost && (
+              <AIContentReview
+                post={aiReviewingPost}
+                campaign={campaign}
+                onClose={() => setAiReviewingPost(null)}
+                onApprove={(post) => { reviewPost(post, "approve"); setAiReviewingPost(null); }}
+                onReject={(post) => { reviewPost(post, "reject"); setAiReviewingPost(null); }}
+              />
+            )}
+          </div>
+        )}
+
+        {tab === "analytics" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard dense label="Impressions" value={totalImpressions.toLocaleString()} icon={TrendingUp} accent="primary" />
+              <StatCard dense label="Clicks" value={totalClicks} icon={MousePointerClick} accent="success" />
+              <StatCard dense label="Leads" value={totalLeads} icon={Target} accent="warning" />
+              <StatCard dense label="Pipeline" value={`€${(totalPipeline / 1000).toFixed(1)}K`} icon={Wallet} accent="iris" />
             </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-medium">Contact</th>
-                      <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">Company</th>
-                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Creator</th>
-                      <th className="text-right px-4 py-3 font-medium">Value</th>
-                      <th className="text-left px-4 py-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {leads.map((l) => (
-                      <tr key={l.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{l.contact_name}</p>
-                          <p className="text-xs text-slate-500">{l.title}</p>
-                        </td>
-                        <td className="px-4 py-3 hidden sm:table-cell text-slate-600">{l.company_name}</td>
-                        <td className="px-4 py-3 hidden md:table-cell text-slate-600">{l.creator_name}</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-900">€{l.value?.toLocaleString()}</td>
-                        <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+
+            {metrics.length > 0 && (
+              <div className="grid gap-4 lg:grid-cols-3">
+                <div className="surface-card p-6 lg:col-span-2">
+                  <h3 className="mb-4 font-semibold tracking-tight">Per-creator performance</h3>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <ReBarChart data={campaignCreators.map((cc) => {
+                      const ccMetrics = metrics.filter((m) => m.creator_id === cc.creator_id);
+                      return {
+                        name: cc.creator_name?.split(" ")[0] || "Creator",
+                        impressions: ccMetrics.reduce((s, m) => s + (m.impressions || 0), 0),
+                        clicks: ccMetrics.reduce((s, m) => s + (m.clicks || 0), 0),
+                        leads: ccMetrics.reduce((s, m) => s + (m.leads || 0), 0),
+                      };
+                    })}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                      <XAxis dataKey="name" tick={{ ...AXIS_TICK, fill: CHART.axis }} stroke={CHART.grid} />
+                      <YAxis tick={{ ...AXIS_TICK, fill: CHART.axis }} stroke={CHART.grid} />
+                      <Tooltip
+                        cursor={{ fill: "hsl(var(--muted))" }}
+                        contentStyle={TOOLTIP}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="impressions" fill={CHART.primary} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="clicks" fill={CHART.success} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="leads" fill={CHART.warning} radius={[4, 4, 0, 0]} />
+                    </ReBarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {leads.length > 0 && (
+                  <div className="surface-card p-6">
+                    <h3 className="mb-4 font-semibold tracking-tight">Lead breakdown</h3>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <PieChart>
+                        <Pie
+                          data={LEAD_STATUSES.map((status) => ({
+                            name: status.charAt(0).toUpperCase() + status.slice(1),
+                            value: leads.filter((l) => l.status === status).length,
+                          })).filter((d) => d.value > 0)}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="45%"
+                          outerRadius={80}
+                          innerRadius={40}
+                          label={({ name, value }) => `${name}: ${value}`}
+                          labelLine={false}
+                        >
+                          {LEAD_STATUSES.map((status, i) => (
+                            <Cell key={status} fill={LEAD_COLORS[i % LEAD_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={TOOLTIP}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {metrics.length > 0 && metrics.some((m) => m.date) && (
+              <div className="surface-card p-6">
+                <h3 className="mb-4 font-semibold tracking-tight">Performance trend over time</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={Object.entries(
+                    metrics.reduce((acc, m) => {
+                      const d = m.date || "N/A";
+                      if (!acc[d]) acc[d] = { date: d, impressions: 0, clicks: 0, leads: 0 };
+                      acc[d].impressions += m.impressions || 0;
+                      acc[d].clicks += m.clicks || 0;
+                      acc[d].leads += m.leads || 0;
+                      return acc;
+                    }, {})
+                  ).map(([date, vals]) => ({ ...vals, date: date.slice(5) })).sort((a, b) => a.date.localeCompare(b.date))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                    <XAxis dataKey="date" tick={{ ...AXIS_TICK, fill: CHART.axis }} stroke={CHART.grid} />
+                    <YAxis tick={{ ...AXIS_TICK, fill: CHART.axis }} stroke={CHART.grid} />
+                    <Tooltip
+                      contentStyle={TOOLTIP}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Area type="monotone" dataKey="impressions" stroke={CHART.primary} fill={CHART.primary} fillOpacity={0.12} />
+                    <Area type="monotone" dataKey="clicks" stroke={CHART.success} fill={CHART.success} fillOpacity={0.12} />
+                    <Area type="monotone" dataKey="leads" stroke={CHART.warning} fill={CHART.warning} fillOpacity={0.12} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="surface-card p-6">
+              <h3 className="mb-4 font-semibold tracking-tight">Creator performance</h3>
+              {metrics.length === 0 ? (
+                <EmptyState
+                  icon={BarChart3}
+                  title="No analytics yet"
+                  description="Performance data will appear once posts go live."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {metrics.map((m) => {
+                    const cc = campaignCreators.find((c) => c.creator_id === m.creator_id);
+                    return (
+                      <li
+                        key={m.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/60 p-3"
+                      >
+                        <span className="text-sm font-semibold">{cc?.creator_name || "Creator"}</span>
+                        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                          <span className="tabular-nums">
+                            {m.impressions?.toLocaleString()} <span className="text-xs">impr</span>
+                          </span>
+                          <span className="tabular-nums">
+                            {m.clicks} <span className="text-xs">clicks</span>
+                          </span>
+                          <span className="tabular-nums">
+                            {m.leads} <span className="text-xs">leads</span>
+                          </span>
+                          <span className="font-semibold text-foreground">€{m.pipeline_value?.toLocaleString()}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {metrics.length > 0 && (
+              <BudgetRecommendations campaignCreators={campaignCreators} metrics={metrics} />
+            )}
+          </div>
+        )}
+
+        {tab === "leads" && (
+          <div className="space-y-3">
+            {leads.length === 0 ? (
+              <div className="surface-card">
+                <EmptyState
+                  icon={Target}
+                  title="No leads yet"
+                  description="Leads from your campaign posts will appear here."
+                />
+              </div>
+            ) : (
+              <div className="surface-card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <caption className="sr-only">Leads captured by this campaign</caption>
+                    <thead className="bg-muted/70 text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">Contact</th>
+                        <th scope="col" className="hidden px-4 py-3 text-left font-semibold sm:table-cell">Company</th>
+                        <th scope="col" className="hidden px-4 py-3 text-left font-semibold md:table-cell">Creator</th>
+                        <th scope="col" className="px-4 py-3 text-right font-semibold">Value</th>
+                        <th scope="col" className="px-4 py-3 text-left font-semibold">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "payments" && (
-        <div className="space-y-3">
-          {payments.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200">
-              <EmptyState icon={Wallet} title="No payments yet" description="Creator payments will appear here once posts are live." />
-            </div>
-          ) : (
-            payments.map((p) => (
-              <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-slate-900">{p.creator_name}</p>
-                  <p className="text-xs text-slate-500">{p.invoice_number || "Pending invoice"} · Due {p.due_date || "TBD"}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-slate-900">€{p.amount}</span>
-                  <StatusBadge status={p.status} />
+                    </thead>
+                    <tbody className="divide-y divide-border/70">
+                      {leads.map((l) => (
+                        <tr key={l.id} className="transition-colors hover:bg-muted/50">
+                          <td className="px-4 py-3">
+                            <p className="font-semibold">{l.contact_name}</p>
+                            <p className="text-xs text-muted-foreground">{l.title}</p>
+                          </td>
+                          <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{l.company_name}</td>
+                          <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{l.creator_name}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums">€{l.value?.toLocaleString()}</td>
+                          <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {tab === "report" && (
-        <CampaignReport
-          campaign={campaign}
-          creators={campaignCreators}
-          posts={posts}
-          metrics={metrics}
-          leads={leads}
-          payments={payments}
-        />
-      )}
+        {tab === "payments" && (
+          <div className="space-y-3">
+            {payments.length === 0 ? (
+              <div className="surface-card">
+                <EmptyState
+                  icon={Wallet}
+                  title="No payments yet"
+                  description="Creator payments will appear here once posts are live."
+                />
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {payments.map((p) => (
+                  <li key={p.id} className="surface-card flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{p.creator_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.invoice_number || "Pending invoice"} · Due {p.due_date || "TBD"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-display font-semibold tabular-nums">€{p.amount}</span>
+                      <StatusBadge status={p.status} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {tab === "report" && (
+          <CampaignReport
+            campaign={campaign}
+            creators={campaignCreators}
+            posts={posts}
+            metrics={metrics}
+            leads={leads}
+            payments={payments}
+          />
+        )}
+      </div>
     </div>
   );
 }

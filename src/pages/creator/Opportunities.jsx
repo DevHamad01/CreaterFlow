@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
-import { firestoreService } from "@/lib/firestore-service";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import PageHeader from "@/components/PageHeader";
 import { FitScore } from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
-import { Megaphone, Check, X, Loader2 } from "lucide-react";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
+import { Megaphone, Check, Loader2, AlertTriangle, RefreshCw, UserRound } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
 export default function Opportunities() {
   const { user } = useAuth();
@@ -11,102 +16,204 @@ export default function Opportunities() {
   const [myCollabs, setMyCollabs] = useState([]);
   const [myProfile, setMyProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [acting, setActing] = useState(null);
 
-  useEffect(() => {
-    if (!user) return;
+  const load = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     Promise.all([
       base44.entities.Campaign.filter({ status: "recruiting" }, "-created_date", 20),
       base44.entities.Campaign.filter({ status: "active" }, "-created_date", 20),
       base44.entities.CampaignCreator.list(),
       base44.entities.Creator.list(),
-    ]).then(([recruiting, active, myCc, allCreators]) => {
-      setCampaigns([...recruiting, ...active]);
-      const creatorName = user.full_name || "";
-      setMyCollabs(myCc.filter((cc) => cc.creator_name === creatorName));
-      setMyProfile(allCreators.find((c) => c.name === creatorName) || null);
-    }).finally(() => setLoading(false));
+    ])
+      .then(([recruiting, active, myCc, allCreators]) => {
+        // A campaign can be returned by both queries if its status flipped
+        // between them; de-duplicate so React keys stay unique.
+        const byId = new Map();
+        [...(recruiting || []), ...(active || [])].forEach((c) => byId.set(c.id, c));
+        setCampaigns([...byId.values()]);
+        const creatorName = user.full_name || "";
+        setMyCollabs((myCc || []).filter((cc) => cc.creator_name === creatorName));
+        setMyProfile((allCreators || []).find((c) => c.name === creatorName) || null);
+      })
+      .catch((err) => {
+        console.error("Opportunities: load failed", err);
+        setError("We couldn't load opportunities. Check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
   }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const hasApplied = (campaignId) => myCollabs.some((cc) => cc.campaign_id === campaignId);
 
+  const available = useMemo(
+    () => campaigns.filter((c) => !hasApplied(c.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [campaigns, myCollabs]
+  );
+
+  // Keep the illustrative fit score stable per campaign instead of reshuffling
+  // it on every re-render.
+  const fitScores = useMemo(() => {
+    const scores = {};
+    available.forEach((c) => {
+      scores[c.id] = 80 + Math.floor(Math.random() * 18);
+    });
+    return scores;
+  }, [available]);
+
   const acceptOpportunity = async (campaign) => {
     setActing(campaign.id);
-    const fitScore = myProfile
-      ? Math.min(98, Math.floor(70 + (myProfile.engagement_rate || 3) * 4 + (myProfile.rating || 4.5) * 2))
-      : Math.floor(75 + Math.random() * 25);
-    await base44.entities.CampaignCreator.create({
-      campaign_id: campaign.id,
-      creator_id: myProfile?.id || "",
-      creator_name: user?.full_name || "Creator",
-      creator_avatar: myProfile?.avatar_url,
-      creator_niche: myProfile?.niche || "AI & SaaS",
-      creator_followers: myProfile?.linkedin_followers || 15000,
-      fit_score: fitScore,
-      price: myProfile?.price_per_post || 800,
-      status: "accepted",
-      tracking_link: `${campaign.tracking_base_url}/${user?.full_name?.toLowerCase().replace(/\s+/g, "-")}`,
-      accepted_date: new Date().toISOString().split("T")[0],
-    });
-    const myCc = await base44.entities.CampaignCreator.list();
-    const creatorName = user?.full_name || "";
-    setMyCollabs(myCc.filter((cc) => cc.creator_name === creatorName));
-    setActing(null);
+    try {
+      const fitScore = myProfile
+        ? Math.min(98, Math.floor(70 + (myProfile.engagement_rate || 3) * 4 + (myProfile.rating || 4.5) * 2))
+        : Math.floor(75 + Math.random() * 25);
+      await base44.entities.CampaignCreator.create({
+        campaign_id: campaign.id,
+        creator_id: myProfile?.id || "",
+        creator_name: user?.full_name || "Creator",
+        creator_avatar: myProfile?.avatar_url,
+        creator_niche: myProfile?.niche || "AI & SaaS",
+        creator_followers: myProfile?.linkedin_followers || 15000,
+        fit_score: fitScore,
+        price: myProfile?.price_per_post || 800,
+        status: "accepted",
+        tracking_link: `${campaign.tracking_base_url}/${user?.full_name?.toLowerCase().replace(/\s+/g, "-")}`,
+        accepted_date: new Date().toISOString().split("T")[0],
+      });
+      const myCc = await base44.entities.CampaignCreator.list();
+      const creatorName = user?.full_name || "";
+      setMyCollabs((myCc || []).filter((cc) => cc.creator_name === creatorName));
+      toast({ title: "Deal accepted", description: campaign.name });
+    } catch (err) {
+      console.error("Opportunities: accept failed", err);
+      toast({
+        title: "We couldn't accept this deal",
+        description: err.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setActing(null);
+    }
   };
 
-  if (loading) return <div className="animate-pulse space-y-3"><div className="h-8 bg-slate-200 rounded w-48" />{[...Array(3)].map((_, i) => <div key={i} className="h-32 bg-slate-100 rounded-xl" />)}</div>;
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading opportunities</span>
+        <div className="space-y-2.5">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-40 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
 
-  const available = campaigns.filter((c) => !hasApplied(c.id));
+  if (error) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+        <EmptyState
+          icon={AlertTriangle}
+          title="We couldn't load opportunities"
+          description={error}
+          action={
+            <Button onClick={load}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Opportunities</h1>
-        <p className="text-sm text-slate-500 mt-1">Brand campaigns looking for creators like you</p>
-      </div>
+      <PageHeader
+        title="Opportunities"
+        icon={Megaphone}
+        description="Brand campaigns looking for creators like you"
+      />
 
-      {available.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200">
-          <EmptyState icon={Megaphone} title="No opportunities available" description="New brand campaigns will appear here when they start recruiting creators." />
+      {!user?.full_name ? (
+        <div className="surface-card">
+          <EmptyState
+            icon={UserRound}
+            title="Add your name to get matched"
+            description="Opportunities are matched to your profile name, so brands know who they're working with. Add it once to start accepting deals."
+            action={
+              <Button asChild>
+                <a href="/app/profile">Complete your profile</a>
+              </Button>
+            }
+          />
+        </div>
+      ) : available.length === 0 ? (
+        <div className="surface-card">
+            <EmptyState
+              illustration="campaign"
+              title="No opportunities available"
+            description="New brand campaigns will appear here when they start recruiting creators."
+          />
         </div>
       ) : (
-        <div className="space-y-4">
+        <Stagger as="ul" className="space-y-4" stagger={0.05}>
           {available.map((c) => (
-            <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-5">
-              <div className="flex items-start justify-between gap-4 mb-3">
+            <StaggerItem key={c.id} as="li" className="surface-card p-5">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-slate-900">{c.name}</h3>
-                    <FitScore score={Math.floor(80 + Math.random() * 18)} />
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <h3 className="truncate font-semibold tracking-tight">{c.name}</h3>
+                    <FitScore score={fitScores[c.id]} />
                   </div>
-                  <p className="text-sm text-slate-500">{c.company_name}</p>
+                  <p className="truncate text-sm text-muted-foreground">{c.company_name}</p>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-lg font-bold text-slate-900">€{myProfile?.price_per_post || 800}</p>
-                  <p className="text-xs text-slate-500">per post</p>
+                <div className="text-right">
+                  <p className="font-display text-lg font-semibold tabular-nums">
+                    €{myProfile?.price_per_post || 800}
+                  </p>
+                  <p className="text-xs text-muted-foreground">per post</p>
                 </div>
               </div>
-              <p className="text-sm text-slate-600 mb-3 line-clamp-2">{c.objective}</p>
-              <div className="flex flex-wrap gap-4 text-xs text-slate-500 mb-4">
-                <span>Target: {c.target_audience}</span>
+
+              <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">{c.objective}</p>
+
+              <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {c.target_audience && <span>Target: {c.target_audience}</span>}
                 {c.start_date && <span>Starts: {c.start_date}</span>}
+                {c.budget ? <span>Budget: €{c.budget.toLocaleString()}</span> : null}
               </div>
-              <div className="flex gap-2 pt-3 border-t border-slate-100">
-                <button
-                  onClick={() => acceptOpportunity(c)}
-                  disabled={acting === c.id}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
-                >
-                  {acting === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Accept deal
-                </button>
-                <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50">
-                  <X className="w-4 h-4" /> Decline
-                </button>
+
+              <div className="flex items-center gap-2 border-t border-border/70 pt-3">
+                <Button onClick={() => acceptOpportunity(c)} disabled={acting === c.id}>
+                  {acting === c.id ? (
+                    <>
+                      <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                      Accepting...
+                    </>
+                  ) : (
+                    <>
+                      <Check aria-hidden="true" className="h-4 w-4" />
+                      Accept deal
+                    </>
+                  )}
+                </Button>
               </div>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       )}
     </div>
   );

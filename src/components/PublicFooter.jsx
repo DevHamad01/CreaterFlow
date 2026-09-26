@@ -1,53 +1,75 @@
 import { Link } from "react-router-dom";
+import { Logo } from "@/components/PublicNav";
+
+const COLUMNS = [
+  {
+    heading: "Solutions",
+    links: [
+      { label: "For companies", to: "/for-companies" },
+      { label: "For agencies", to: "/for-agencies" },
+      { label: "For creators", to: "/for-creators" },
+    ],
+  },
+  {
+    heading: "Product",
+    links: [
+      { label: "Marketplace", to: "/marketplace" },
+      { label: "How it works", to: "/how-it-works" },
+      { label: "Pricing", to: "/pricing" },
+    ],
+  },
+  {
+    heading: "Get started",
+    links: [
+      { label: "Launch a campaign", to: "/signup" },
+      { label: "Become a creator", to: "/signup" },
+      { label: "Sign in", to: "/login" },
+    ],
+  },
+];
 
 export default function PublicFooter() {
   return (
-    <footer className="bg-slate-900 text-slate-300">
-      <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+    <footer className="relative overflow-hidden bg-brand-gradient text-primary-foreground">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-20 -bottom-24 h-72 w-72 rounded-full bg-primary-foreground/10 blur-3xl"
+      />
+      <div className="container-page relative py-14 sm:py-16">
+        <div className="grid grid-cols-2 gap-10 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-500 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
-              <span className="font-semibold text-lg text-white">CreatorFlow</span>
-            </div>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <Logo onBrand />
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-primary-foreground/85">
               Turn LinkedIn creators into your best acquisition channel.
             </p>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold text-white mb-4">Solutions</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/for-companies" className="hover:text-white transition-colors">For companies</Link></li>
-              <li><Link to="/for-agencies" className="hover:text-white transition-colors">For agencies</Link></li>
-              <li><Link to="/for-creators" className="hover:text-white transition-colors">For creators</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-white mb-4">Product</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/marketplace" className="hover:text-white transition-colors">Marketplace</Link></li>
-              <li><Link to="/how-it-works" className="hover:text-white transition-colors">How it works</Link></li>
-              <li><Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-white mb-4">Get started</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/signup" className="hover:text-white transition-colors">Launch a campaign</Link></li>
-              <li><Link to="/signup" className="hover:text-white transition-colors">Become a creator</Link></li>
-              <li><Link to="/login" className="hover:text-white transition-colors">Sign in</Link></li>
-            </ul>
-          </div>
+          {COLUMNS.map((col) => (
+            <nav key={col.heading} aria-label={col.heading}>
+              <h2 className="text-sm font-semibold">{col.heading}</h2>
+              <ul className="mt-4 space-y-2.5">
+                {col.links.map((l) => (
+                  <li key={l.label}>
+                    <Link
+                      to={l.to}
+                      className="rounded text-sm text-primary-foreground/85 transition-colors hover:text-primary-foreground"
+                    >
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
 
-        <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col sm:flex-row justify-between gap-4">
-          <p className="text-sm text-slate-500">© 2026 CreatorFlow. All rights reserved.</p>
-          <p className="text-sm text-slate-500">Built as a functional MVP inspired by naano.com</p>
+        <div className="mt-12 flex flex-col justify-between gap-3 border-t border-primary-foreground/20 pt-8 sm:flex-row sm:items-center">
+          <p className="text-sm text-primary-foreground/85">
+            © 2026 CreatorFlow. All rights reserved.
+          </p>
+          <p className="text-sm text-primary-foreground/70">
+            Built as a functional MVP inspired by naano.com
+          </p>
         </div>
       </div>
     </footer>

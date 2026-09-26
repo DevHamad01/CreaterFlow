@@ -1,14 +1,24 @@
-import { useEffect, useState } from "react";
-import { firestoreService } from "@/lib/firestore-service";
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import EmptyState from "@/components/EmptyState";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { StatusBadge } from "@/components/StatusBadge";
-import { TrendingUp, MousePointerClick, Target, Wallet, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, Legend, PieChart, Pie, Cell
+  TrendingUp, MousePointerClick, Target, Wallet, BarChart3,
+  AlertTriangle, RefreshCw, Coins, HandCoins, Percent
+} from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
+import { base44 } from "@/api/base44Client";
+import { CHART_COLORS, CHART_TOOLTIP, CHART_AXIS_TICK } from "@/lib/chartTheme";
+
+const CHART = CHART_COLORS;
 
 export default function Analytics() {
   const { user } = useAuth();
@@ -17,29 +27,83 @@ export default function Analytics() {
   const [leads, setLeads] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (!user) return;
+  const load = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     Promise.all([
       base44.entities.Campaign.filter({ created_by_id: user.id }),
       base44.entities.CampaignMetric.filter({}),
       base44.entities.Lead.filter({ created_by_id: user.id }),
       base44.entities.Payment.filter({ created_by_id: user.id }),
-    ]).then(([c, m, l, p]) => {
-      // Filter metrics to only this user's campaigns
-      const campaignIds = new Set(c.map((camp) => camp.id));
-      setCampaigns(c);
-      setMetrics(m.filter((mt) => campaignIds.has(mt.campaign_id)));
-      setLeads(l);
-      setPayments(p);
-    }).finally(() => setLoading(false));
+    ])
+      .then(([c, m, l, p]) => {
+        // Filter metrics to only this user's campaigns
+        const campaignIds = new Set(c.map((camp) => camp.id));
+        setCampaigns(c || []);
+        setMetrics((m || []).filter((mt) => campaignIds.has(mt.campaign_id)));
+        setLeads(l || []);
+        setPayments(p || []);
+      })
+      .catch((err) => {
+        console.error("Analytics: load failed", err);
+        setError("We couldn't load your performance data. Check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
   }, [user]);
 
-  if (loading) return <div className="animate-pulse space-y-4"><div className="h-8 bg-slate-200 rounded w-48" /><div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-100 rounded-xl" />)}</div></div>;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading analytics</span>
+        <div className="space-y-2.5">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
+        </div>
+        <Skeleton className="h-72 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+        <EmptyState
+          icon={AlertTriangle}
+          title="We couldn't load your analytics"
+          description={error}
+          action={
+            <Button onClick={load}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   const totalImpressions = metrics.reduce((s, m) => s + (m.impressions || 0), 0);
   const totalClicks = metrics.reduce((s, m) => s + (m.clicks || 0), 0);
-  const totalQualifiedClicks = metrics.reduce((s, m) => s + (m.qualified_clicks || 0), 0);
   const totalLeads = leads.length;
   const totalPipeline = leads.reduce((s, l) => s + (l.value || 0), 0);
   const totalSpend = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
@@ -47,146 +111,216 @@ export default function Analytics() {
   const cpl = totalLeads > 0 ? (totalSpend / totalLeads).toFixed(2) : "0.00";
   const conversionRate = totalClicks > 0 ? ((totalLeads / totalClicks) * 100).toFixed(1) : "0.0";
 
+  const reachData = campaigns.map((c) => {
+    const cm = metrics.filter((m) => m.campaign_id === c.id);
+    return {
+      name: c.name.length > 18 ? `${c.name.slice(0, 18)}…` : c.name,
+      impressions: cm.reduce((s, m) => s + (m.impressions || 0), 0),
+      clicks: cm.reduce((s, m) => s + (m.clicks || 0), 0),
+      leads: cm.reduce((s, m) => s + (m.leads || 0), 0),
+    };
+  });
+
+  const pipelineData = campaigns
+    .map((c) => {
+      const cLeads = leads.filter((l) => l.campaign_id === c.id);
+      return {
+        name: c.name.length > 15 ? `${c.name.slice(0, 15)}…` : c.name,
+        pipeline: cLeads.reduce((s, l) => s + (l.value || 0), 0),
+      };
+    })
+    .filter((d) => d.pipeline > 0);
+
+  const spendData = campaigns.map((c) => {
+    const cSpend = payments
+      .filter((p) => p.campaign_id === c.id && p.status === "paid")
+      .reduce((s, p) => s + p.amount, 0);
+    const cPipeline = leads
+      .filter((l) => l.campaign_id === c.id)
+      .reduce((s, l) => s + (l.value || 0), 0);
+    return {
+      name: c.name.length > 18 ? `${c.name.slice(0, 18)}…` : c.name,
+      spend: cSpend,
+      pipeline: cPipeline,
+    };
+  });
+
+  const hasChartData = campaigns.length > 0 && metrics.length > 0;
+  const hasSpendData = campaigns.length > 0 && payments.length > 0;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
-        <p className="text-sm text-slate-500 mt-1">Performance across all your campaigns</p>
-      </div>
+      <PageHeader
+        title="Analytics"
+        icon={BarChart3}
+        description="Performance across all your campaigns"
+      />
 
-      {/* Overview stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Impressions" value={totalImpressions.toLocaleString()} icon={TrendingUp} accent="purple" />
-        <StatCard label="Clicks" value={totalClicks.toLocaleString()} icon={MousePointerClick} accent="blue" />
-        <StatCard label="Leads" value={totalLeads} icon={Target} accent="emerald" />
-        <StatCard label="Pipeline" value={`€${(totalPipeline / 1000).toFixed(1)}K`} icon={Wallet} accent="amber" />
-      </div>
+      <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4" stagger={0.05}>
+        <StatCard label="Impressions" value={totalImpressions.toLocaleString()} icon={TrendingUp} accent="iris" />
+        <StatCard label="Clicks" value={totalClicks.toLocaleString()} icon={MousePointerClick} accent="primary" />
+        <StatCard label="Leads" value={totalLeads} icon={Target} accent="success" />
+        <StatCard label="Pipeline" value={`€${(totalPipeline / 1000).toFixed(1)}K`} icon={Wallet} accent="warning" />
+      </Stagger>
 
-      {/* Cost metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-sm text-slate-500 mb-1">Cost per click</p>
-          <p className="text-2xl font-bold text-slate-900">€{cpc}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-sm text-slate-500 mb-1">Cost per lead</p>
-          <p className="text-2xl font-bold text-slate-900">€{cpl}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5 col-span-2 lg:col-span-1">
-          <p className="text-sm text-slate-500 mb-1">Conversion rate</p>
-          <p className="text-2xl font-bold text-slate-900">{conversionRate}%</p>
-        </div>
-      </div>
+      <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-3" stagger={0.05}>
+        <StatCard dense label="Cost per click" value={`€${cpc}`} icon={Coins} accent="neutral" />
+        <StatCard dense label="Cost per lead" value={`€${cpl}`} icon={HandCoins} accent="neutral" />
+        <StatCard dense label="Conversion rate" value={`${conversionRate}%`} icon={Percent} accent="neutral" className="col-span-2 lg:col-span-1" />
+      </Stagger>
 
-      {/* Charts */}
-      {campaigns.length > 0 && metrics.length > 0 && (
-        <div className="grid lg:grid-cols-2 gap-4">
-          {/* Performance bar chart */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Reach & engagement by campaign</h3>
+      {hasChartData && (
+        <Stagger className="grid gap-4 lg:grid-cols-2" stagger={0.09}>
+          <StaggerItem className="surface-card p-6">
+            <h3 className="mb-4 font-semibold tracking-tight">Reach &amp; engagement by campaign</h3>
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={campaigns.map((c) => {
-                const cm = metrics.filter((m) => m.campaign_id === c.id);
-                return {
-                  name: c.name.length > 18 ? c.name.slice(0, 18) + "…" : c.name,
-                  impressions: cm.reduce((s, m) => s + (m.impressions || 0), 0),
-                  clicks: cm.reduce((s, m) => s + (m.clicks || 0), 0),
-                  leads: cm.reduce((s, m) => s + (m.leads || 0), 0),
-                };
-              })}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} angle={-20} textAnchor="end" height={60} interval={0} />
-                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
+              <BarChart data={reachData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ ...CHART_AXIS_TICK, fill: CHART.axis }}
+                  angle={-20}
+                  textAnchor="end"
+                  height={60}
+                  interval={0}
+                  stroke={CHART.grid}
+                />
+                <YAxis tick={{ ...CHART_AXIS_TICK, fill: CHART.axis }} stroke={CHART.grid} />
+                <Tooltip contentStyle={CHART_TOOLTIP} cursor={{ fill: CHART.muted }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="impressions" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="clicks" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="leads" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="impressions" fill={CHART.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="clicks" fill={CHART.success} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="leads" fill={CHART.warning} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </StaggerItem>
 
-          {/* Pipeline by campaign */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Pipeline value by campaign</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart layout="vertical" data={campaigns.map((c) => {
-                const cLeads = leads.filter((l) => l.campaign_id === c.id);
-                return {
-                  name: c.name.length > 15 ? c.name.slice(0, 15) + "…" : c.name,
-                  pipeline: cLeads.reduce((s, l) => s + (l.value || 0), 0),
-                };
-              }).filter((d) => d.pipeline > 0)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} width={100} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} formatter={(v) => `€${v.toLocaleString()}`} />
-                <Bar dataKey="pipeline" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          <StaggerItem className="surface-card p-6">
+            <h3 className="mb-4 font-semibold tracking-tight">Pipeline value by campaign</h3>
+            {pipelineData.length === 0 ? (
+              <EmptyState
+                illustration="earnings"
+                title="No pipeline value yet"
+                description="Lead values will show up here once creators start converting."
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart layout="vertical" data={pipelineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                  <XAxis
+                    type="number"
+                    tick={{ ...CHART_AXIS_TICK, fill: CHART.axis }}
+                    tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`}
+                    stroke={CHART.grid}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ ...CHART_AXIS_TICK, fill: CHART.axis }}
+                    width={100}
+                    stroke={CHART.grid}
+                  />
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP}
+                    cursor={{ fill: CHART.muted }}
+                    formatter={(v) => `€${v.toLocaleString()}`}
+                  />
+                  <Bar dataKey="pipeline" fill={CHART.iris} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </StaggerItem>
+        </Stagger>
       )}
 
-      {/* Spend vs pipeline */}
-      {campaigns.length > 0 && payments.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Spend vs. pipeline by campaign</h3>
+      {hasSpendData && (
+        <div className="surface-card p-6">
+          <h3 className="mb-4 font-semibold tracking-tight">Spend vs. pipeline by campaign</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={campaigns.map((c) => {
-              const cSpend = payments.filter((p) => p.campaign_id === c.id && p.status === "paid").reduce((s, p) => s + p.amount, 0);
-              const cPipeline = leads.filter((l) => l.campaign_id === c.id).reduce((s, l) => s + (l.value || 0), 0);
-              return {
-                name: c.name.length > 18 ? c.name.slice(0, 18) + "…" : c.name,
-                spend: cSpend,
-                pipeline: cPipeline,
-              };
-            })}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} angle={-20} textAnchor="end" height={60} interval={0} />
-              <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} formatter={(v) => `€${v.toLocaleString()}`} />
+            <BarChart data={spendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+              <XAxis
+                dataKey="name"
+                tick={{ ...CHART_AXIS_TICK, fill: CHART.axis }}
+                angle={-20}
+                textAnchor="end"
+                height={60}
+                interval={0}
+                stroke={CHART.grid}
+              />
+              <YAxis
+                tick={{ ...CHART_AXIS_TICK, fill: CHART.axis }}
+                tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`}
+                stroke={CHART.grid}
+              />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP}
+                cursor={{ fill: CHART.muted }}
+                formatter={(v) => `€${v.toLocaleString()}`}
+              />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="spend" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="pipeline" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="spend" fill={CHART.neutral} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pipeline" fill={CHART.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
-      {/* Campaign breakdown */}
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Campaign performance</h2>
+      <section className="space-y-4">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Campaign performance</h2>
         {campaigns.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200">
-            <EmptyState icon={BarChart3} title="No data yet" description="Create a campaign to start tracking performance." />
+          <div className="surface-card">
+            <EmptyState
+              illustration="search"
+              title="No data yet"
+              description="Create a campaign to start tracking performance."
+              action={
+                <Button asChild>
+                  <Link to="/app/campaigns/new">New campaign</Link>
+                </Button>
+              }
+            />
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="surface-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                <caption className="sr-only">Performance for each of your campaigns</caption>
+                <thead className="bg-muted/70 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium">Campaign</th>
-                    <th className="text-right px-4 py-3 font-medium hidden sm:table-cell">Impressions</th>
-                    <th className="text-right px-4 py-3 font-medium hidden sm:table-cell">Clicks</th>
-                    <th className="text-right px-4 py-3 font-medium">Leads</th>
-                    <th className="text-right px-4 py-3 font-medium hidden md:table-cell">Pipeline</th>
-                    <th className="text-left px-4 py-3 font-medium">Status</th>
+                    <th scope="col" className="px-4 py-3 text-left font-semibold">Campaign</th>
+                    <th scope="col" className="hidden px-4 py-3 text-right font-semibold sm:table-cell">Impressions</th>
+                    <th scope="col" className="hidden px-4 py-3 text-right font-semibold sm:table-cell">Clicks</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Leads</th>
+                    <th scope="col" className="hidden px-4 py-3 text-right font-semibold md:table-cell">Pipeline</th>
+                    <th scope="col" className="px-4 py-3 text-left font-semibold">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border/70">
                   {campaigns.map((c) => {
                     const cMetrics = metrics.filter((m) => m.campaign_id === c.id);
                     const cLeads = leads.filter((l) => l.campaign_id === c.id);
                     const cPipeline = cLeads.reduce((s, l) => s + (l.value || 0), 0);
                     return (
-                      <tr key={c.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
-                        <td className="px-4 py-3 text-right text-slate-600 hidden sm:table-cell">{cMetrics.reduce((s, m) => s + (m.impressions || 0), 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right text-slate-600 hidden sm:table-cell">{cMetrics.reduce((s, m) => s + (m.clicks || 0), 0)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{cLeads.length}</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-900 hidden md:table-cell">€{cPipeline.toLocaleString()}</td>
+                      <tr key={c.id} className="transition-colors hover:bg-muted/50">
+                        <td className="px-4 py-3">
+                          <Link
+                            to={`/app/campaigns/${c.id}`}
+                            className="font-semibold transition-colors hover:text-primary"
+                          >
+                            {c.name}
+                          </Link>
+                        </td>
+                        <td className="hidden px-4 py-3 text-right tabular-nums text-muted-foreground sm:table-cell">
+                          {cMetrics.reduce((s, m) => s + (m.impressions || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="hidden px-4 py-3 text-right tabular-nums text-muted-foreground sm:table-cell">
+                          {cMetrics.reduce((s, m) => s + (m.clicks || 0), 0)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{cLeads.length}</td>
+                        <td className="hidden px-4 py-3 text-right font-semibold tabular-nums md:table-cell">
+                          €{cPipeline.toLocaleString()}
+                        </td>
                         <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
                       </tr>
                     );
@@ -196,7 +330,7 @@ export default function Analytics() {
             </div>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import { firestoreService } from "@/lib/firestore-service";
 import { useAuth } from "@/lib/AuthContext";
-import { Loader2, Check } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { StatusBadge } from "@/components/StatusBadge";
+import { toast } from "@/hooks/use-toast";
+import { Loader2, Check, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -24,62 +30,110 @@ export default function Settings() {
     try {
       await base44.auth.updateMe({ full_name: fullName, company_name: companyName, phone });
       setSaved(true);
+      toast({ title: "Settings saved" });
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      alert("Failed to save: " + (err.message || "Unknown error"));
+      console.error("Settings: save failed", err);
+      toast({
+        title: "We couldn't save your settings",
+        description: err.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage your account and company profile</p>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <PageHeader
+        title="Settings"
+        icon={SettingsIcon}
+        description="Manage your account and company profile"
+      />
+
+      <div className="surface-card space-y-5 p-6">
+        <h2 className="font-semibold tracking-tight">Account</h2>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-email">Email</Label>
+          <Input
+            id="settings-email"
+            value={user?.email || ""}
+            readOnly
+            disabled
+            aria-describedby="settings-email-hint"
+          />
+          <p id="settings-email-hint" className="text-xs text-muted-foreground">
+            Your sign-in email can't be changed here.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-full-name">Full name</Label>
+          <Input
+            id="settings-full-name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            autoComplete="name"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-company">Company name</Label>
+          <Input
+            id="settings-company"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            autoComplete="organization"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-phone">Phone</Label>
+          <Input
+            id="settings-phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+33 6 12 34 56 78"
+            autoComplete="tel"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
+              <>
+                <Check aria-hidden="true" className="h-4 w-4" />
+                Saved
+              </>
+            ) : (
+              "Save changes"
+            )}
+          </Button>
+          <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
+            {saved ? "Your profile is up to date." : ""}
+          </span>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-        <h2 className="font-semibold text-slate-900">Account</h2>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Email</label>
-          <input value={user?.email || ""} disabled className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-500" />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Full name</label>
-          <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Company name</label>
-          <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Phone</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+33 6 12 34 56 78" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
-          {saving ? "Saving..." : saved ? "Saved!" : "Save changes"}
-        </button>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-semibold text-slate-900 mb-2">Plan</h2>
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+      <div className="surface-card p-6">
+        <h2 className="mb-4 font-semibold tracking-tight">Plan</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/60 p-4">
           <div>
-            <p className="font-medium text-slate-900">Free plan</p>
-            <p className="text-xs text-slate-500">Self-serve marketplace access</p>
+            <p className="inline-flex items-center gap-1.5 font-semibold">
+              <Sparkles aria-hidden="true" className="h-4 w-4 text-primary" />
+              Free plan
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Self-serve marketplace access</p>
           </div>
-          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">Active</span>
+          <StatusBadge status="active" />
         </div>
       </div>
     </div>

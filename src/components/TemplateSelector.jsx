@@ -1,17 +1,47 @@
-import { useEffect, useState } from "react";
-import { firestoreService } from "@/lib/firestore-service";
-import { Save, FolderOpen, Trash2, FileText, X, Loader2, Plus } from "lucide-react";
+import { useCallback, useEffect, useId, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
+import { Save, FolderOpen, Trash2, FileText, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+
+const CATEGORIES = [
+  { value: "lead_gen", label: "Lead Generation" },
+  { value: "awareness", label: "Brand Awareness" },
+  { value: "product_launch", label: "Product Launch" },
+  { value: "thought_leadership", label: "Thought Leadership" },
+  { value: "retargeting", label: "Retargeting" },
+];
 
 export function TemplateSelector({ onApply, onClose }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     base44.entities.CampaignTemplate.list("-created_date", 50)
-      .then(setTemplates)
-      .catch(() => setTemplates([]))
+      .then((rows) => setTemplates(rows || []))
+      .catch((err) => {
+        console.error("TemplateSelector: load failed", err);
+        setError("We couldn't load your templates. Check your connection and try again.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const applyTemplate = (tpl) => {
     onApply({
@@ -30,53 +60,139 @@ export function TemplateSelector({ onApply, onClose }) {
     onClose();
   };
 
-  const deleteTemplate = async (id) => {
-    await base44.entities.CampaignTemplate.delete(id);
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
+  const deleteTemplate = async (tpl) => {
+    setDeleting(tpl.id);
+    const previous = templates;
+    setTemplates((prev) => prev.filter((t) => t.id !== tpl.id));
+    try {
+      await base44.entities.CampaignTemplate.delete(tpl.id);
+      toast({ title: "Template deleted", description: tpl.name });
+    } catch (err) {
+      console.error("TemplateSelector: delete failed", err);
+      setTemplates(previous);
+      toast({
+        title: "We couldn't delete this template",
+        description: err.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(null);
+    }
   };
 
-  if (loading) return <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
-
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Choose a campaign template</h3>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-500" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {templates.length === 0 ? (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose?.();
+      }}
+    >
+      <DialogContent className="flex max-h-[80vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle className="flex items-center gap-2">
+            <FolderOpen aria-hidden="true" className="h-5 w-5 text-primary" />
+            Choose a campaign template
+          </DialogTitle>
+          <DialogDescription>
+            Applying a template fills the campaign form with your saved settings.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 space-y-2 overflow-y-auto p-3">
+          {loading ? (
+            <div className="space-y-2 p-2" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading templates</span>
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-20 rounded-xl" />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="px-4 py-10 text-center" role="alert">
+              <AlertTriangle aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-warning" />
+              <p className="text-sm text-foreground">{error}</p>
+              <Button variant="outline" size="sm" className="mt-4" onClick={load}>
+                <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
+                Try again
+              </Button>
+            </div>
+          ) : templates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
-                <FolderOpen className="w-5 h-5 text-slate-400" />
-              </div>
-              <p className="text-sm text-slate-500">No templates saved yet</p>
-              <p className="text-xs text-slate-400 mt-1">Save your campaign settings as a template to reuse them later</p>
+              <span
+                aria-hidden="true"
+                className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted"
+              >
+                <FolderOpen className="h-5 w-5 text-muted-foreground" />
+              </span>
+              <p className="text-sm font-medium">No templates saved yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Save your campaign settings as a template to reuse them later
+              </p>
             </div>
           ) : (
-            templates.map((tpl) => (
-              <div key={tpl.id} className="group flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => applyTemplate(tpl)}>
-                  <p className="text-sm font-medium text-slate-900">{tpl.name}</p>
-                  {tpl.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{tpl.description}</p>}
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {tpl.category && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{tpl.category}</span>}
-                    {tpl.budget > 0 && <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">€{tpl.budget.toLocaleString()}</span>}
-                    {tpl.lead_target > 0 && <span className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">{tpl.lead_target} leads</span>}
-                  </div>
-                </div>
-                <button onClick={() => deleteTemplate(tpl.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 transition-all">
-                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                </button>
-              </div>
-            ))
+            <ul className="space-y-2">
+              {templates.map((tpl) => (
+                <li
+                  key={tpl.id}
+                  className="group flex items-start gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-muted/60"
+                >
+                  <button
+                    type="button"
+                    onClick={() => applyTemplate(tpl)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10"
+                    >
+                      <FileText className="h-4 w-4 text-primary" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{tpl.name}</span>
+                      {tpl.description && (
+                        <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+                          {tpl.description}
+                        </span>
+                      )}
+                      <span className="mt-2 flex flex-wrap gap-2">
+                        {tpl.category && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {tpl.category}
+                          </span>
+                        )}
+                        {tpl.budget > 0 && (
+                          <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+                            €{tpl.budget.toLocaleString()}
+                          </span>
+                        )}
+                        {tpl.lead_target > 0 && (
+                          <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+                            {tpl.lead_target} leads
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteTemplate(tpl)}
+                    disabled={deleting === tpl.id}
+                    aria-label={`Delete template ${tpl.name}`}
+                    className="flex-shrink-0 text-danger hover:bg-danger/10 hover:text-danger"
+                  >
+                    {deleting === tpl.id ? (
+                      <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -85,10 +201,13 @@ export function SaveTemplateModal({ campaignData, onClose }) {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("lead_gen");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const uid = useId();
 
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       await base44.entities.CampaignTemplate.create({
         name: name.trim(),
@@ -105,58 +224,94 @@ export function SaveTemplateModal({ campaignData, onClose }) {
         lead_target: campaignData.lead_target || 0,
         category,
       });
+      toast({ title: "Template saved", description: name.trim() });
       onClose();
     } catch (err) {
-      // silent
+      console.error("SaveTemplateModal: save failed", err);
+      setError(err.message || "We couldn't save this template. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2">
-          <Save className="w-5 h-5 text-blue-600" />
-          <h3 className="font-semibold text-slate-900">Save as template</h3>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose?.();
+      }}
+    >
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Save aria-hidden="true" className="h-5 w-5 text-primary" />
+            Save as template
+          </DialogTitle>
+          <DialogDescription>
+            Save the current campaign settings so you can reuse them for the next one.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${uid}-name`}>Template name</Label>
+            <Input
+              id={`${uid}-name`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Q1 Product Launch Template"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${uid}-description`}>Description (optional)</Label>
+            <Input
+              id={`${uid}-description`}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="When to use this template..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${uid}-category`}>Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger id={`${uid}-category`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {error && (
+            <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
+              {error}
+            </p>
+          )}
         </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-1 block">Template name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Q1 Product Launch Template"
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-            autoFocus
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-1 block">Description (optional)</label>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="When to use this template..."
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-1 block">Category</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white">
-            <option value="lead_gen">Lead Generation</option>
-            <option value="awareness">Brand Awareness</option>
-            <option value="product_launch">Product Launch</option>
-            <option value="thought_leadership">Thought Leadership</option>
-            <option value="retargeting">Retargeting</option>
-          </select>
-        </div>
-        <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Cancel</button>
-          <button onClick={save} disabled={!name.trim() || saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1.5">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save template
-          </button>
-        </div>
-      </div>
-    </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={!name.trim() || saving}>
+            {saving ? (
+              <>
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save aria-hidden="true" className="h-4 w-4" />
+                Save template
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

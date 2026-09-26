@@ -6,8 +6,9 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import AppSidebar from '@/components/AppSidebar';
+import ProtectedRoute from './components/ProtectedRoute';
+import AppSidebar from './components/AppSidebar';
+import MotionProvider from './components/motion/MotionProvider';
 
 // Public pages
 import Home from '@/pages/Home';
@@ -50,7 +51,11 @@ const AuthenticatedApp = () => {
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+        <div
+          className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary"
+          role="status"
+          aria-label="Loading"
+        />
       </div>
     );
   }
@@ -111,15 +116,17 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <ScrollToTop />
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+    <MotionProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <ScrollToTop />
+            <AuthenticatedApp />
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </AuthProvider>
+    </MotionProvider>
   )
 }
 

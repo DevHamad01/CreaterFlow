@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { firestoreService } from "@/lib/firestore-service";
 import { useAuth } from "@/lib/AuthContext";
+import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
-import {
-  Megaphone, Wallet, TrendingUp, PenSquare,
-  ArrowRight, MessageSquare, CheckCircle2
-} from "lucide-react";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Megaphone, Wallet, TrendingUp, PenSquare, MessageSquare, AlertTriangle, RefreshCw, UserRound } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
 export default function CreatorDashboard() {
   const { user } = useAuth();
@@ -18,84 +19,224 @@ export default function CreatorDashboard() {
   const [posts, setPosts] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (!user) return;
+  const load = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     Promise.all([
       base44.entities.CampaignCreator.list("-created_date", 50),
       base44.entities.Campaign.list("-created_date", 50),
       base44.entities.Post.list("-created_date", 50),
       base44.entities.Payment.list("-created_date", 50),
-    ]).then(([cc, camps, p, pay]) => {
-      const creatorName = user.full_name || "";
-      setCampaignCreators(cc.filter((c) => c.creator_name === creatorName));
-      setCampaigns(camps);
-      setPosts(p.filter((p) => p.creator_name === creatorName));
-      setPayments(pay.filter((p) => p.creator_name === creatorName));
-    }).finally(() => setLoading(false));
+    ])
+      .then(([cc, camps, p, pay]) => {
+        const creatorName = user.full_name || "";
+        setCampaignCreators((cc || []).filter((c) => c.creator_name === creatorName));
+        setCampaigns(camps || []);
+        setPosts((p || []).filter((row) => row.creator_name === creatorName));
+        setPayments((pay || []).filter((row) => row.creator_name === creatorName));
+      })
+      .catch((err) => {
+        console.error("CreatorDashboard: load failed", err);
+        setError("We couldn't load your dashboard. Check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
   }, [user]);
 
-  if (loading) return <div className="animate-pulse space-y-4"><div className="h-8 bg-slate-200 rounded w-48" /><div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-100 rounded-xl" />)}</div></div>;
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const activeCampaigns = campaignCreators.filter((cc) => ["invited", "accepted", "draft_submitted", "in_review", "approved", "scheduled", "live"].includes(cc.status)).length;
-  const totalEarnings = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const pendingEarnings = payments.filter((p) => p.status === "pending" || p.status === "scheduled").reduce((s, p) => s + p.amount, 0);
-  const draftsPending = posts.filter((p) => p.status === "submitted" || p.status === "in_review").length;
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading your dashboard</span>
+        <div className="space-y-2.5">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-28 rounded-2xl" />
+          <Skeleton className="h-28 rounded-2xl" />
+        </div>
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+        <EmptyState
+          icon={AlertTriangle}
+          title="We couldn't load your dashboard"
+          description={error}
+          action={
+            <Button onClick={load}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Welcome back{user?.full_name ? `, ${user.full_name.split(" ")[0]}` : ""}</h1>
-        <p className="text-sm text-slate-500 mt-1">Here's your creator dashboard.</p>
-      </div>
+      <PageHeader
+        title={firstName ? `Welcome back, ${firstName}` : "Your creator dashboard"}
+        description="Track your deals, drafts, and earnings in one place."
+      />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Active deals" value={activeCampaigns} icon={Megaphone} accent="blue" />
-        <StatCard label="Total earned" value={`€${totalEarnings.toLocaleString()}`} icon={Wallet} accent="emerald" />
-        <StatCard label="Pending" value={`€${pendingEarnings.toLocaleString()}`} icon={TrendingUp} accent="amber" />
-        <StatCard label="Drafts to review" value={draftsPending} icon={MessageSquare} accent="purple" />
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        <Link to="/app/opportunities" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-all">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-3"><Megaphone className="w-5 h-5 text-blue-600" /></div>
-          <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">Find opportunities</h3>
-          <p className="text-sm text-slate-500 mt-1">Browse brand campaigns looking for creators</p>
-        </Link>
-        <Link to="/app/profile" className="group bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-all">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mb-3"><PenSquare className="w-5 h-5 text-purple-600" /></div>
-          <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">Edit profile</h3>
-          <p className="text-sm text-slate-500 mt-1">Update your niche, audience, and pricing</p>
-        </Link>
-      </div>
-
-      {/* Active collaborations */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Your collaborations</h2>
-          <Link to="/app/my-campaigns" className="text-sm text-blue-600 hover:text-blue-700">View all</Link>
+      {!user?.full_name ? (
+        <div className="surface-card">
+          <EmptyState
+            icon={UserRound}
+            title="Add your name to see your work"
+            description="Your dashboard matches campaigns, drafts, and payments to your profile name. Add it once and everything here fills in."
+            action={
+              <Button asChild>
+                <Link to="/app/profile">Complete your profile</Link>
+              </Button>
+            }
+          />
         </div>
-        {campaignCreators.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200">
-            <EmptyState icon={Megaphone} title="No collaborations yet" description="Browse opportunities and accept your first brand deal." action={<button onClick={() => navigate("/app/opportunities")} className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium">Find opportunities</button>} />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {campaignCreators.slice(0, 5).map((cc) => {
-              const camp = campaigns.find((c) => c.id === cc.campaign_id);
-              return (
-                <div key={cc.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">{camp?.name || "Campaign"}</p>
-                    <p className="text-xs text-slate-500">{camp?.company_name || "—"} · €{cc.price} · Fit {cc.fit_score}%</p>
-                  </div>
-                  <StatusBadge status={cc.status} />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      ) : (
+        <>
+          <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4" stagger={0.05}>
+            <StatCard
+              label="Active deals"
+              value={campaignCreators.filter((cc) =>
+                ["invited", "accepted", "draft_submitted", "in_review", "approved", "scheduled", "live"].includes(cc.status)
+              ).length}
+              icon={Megaphone}
+              accent="primary"
+            />
+            <StatCard
+              label="Total earned"
+              value={`€${payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0).toLocaleString()}`}
+              icon={Wallet}
+              accent="success"
+            />
+            <StatCard
+              label="Pending"
+              value={`€${payments
+                .filter((p) => p.status === "pending" || p.status === "scheduled")
+                .reduce((s, p) => s + p.amount, 0)
+                .toLocaleString()}`}
+              icon={TrendingUp}
+              accent="warning"
+            />
+            <StatCard
+              label="Drafts to review"
+              value={posts.filter((p) => p.status === "submitted" || p.status === "in_review").length}
+              icon={MessageSquare}
+              accent="iris"
+            />
+          </Stagger>
+
+          <Stagger className="grid gap-4 sm:grid-cols-2" stagger={0.07}>
+            <StaggerItem className="surface-card card-lift">
+              <Link
+                to="/app/opportunities"
+                className="block rounded-2xl p-5 focus-visible:outline-none"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                >
+                  <Megaphone className="h-5 w-5" />
+                </span>
+                <h3 className="font-semibold tracking-tight transition-colors group-hover:text-primary">
+                  Find opportunities
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Browse brand campaigns looking for creators
+                </p>
+              </Link>
+            </StaggerItem>
+            <StaggerItem className="surface-card card-lift">
+              <Link
+                to="/app/profile"
+                className="block rounded-2xl p-5 focus-visible:outline-none"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-iris/10 text-iris"
+                >
+                  <PenSquare className="h-5 w-5" />
+                </span>
+                <h3 className="font-semibold tracking-tight">Edit profile</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Update your niche, audience, and pricing
+                </p>
+              </Link>
+            </StaggerItem>
+          </Stagger>
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold tracking-tight">Your collaborations</h2>
+              {campaignCreators.length > 5 && (
+                <Link
+                  to="/app/my-campaigns"
+                  className="text-sm font-semibold text-primary hover:text-primary/80"
+                >
+                  View all
+                </Link>
+              )}
+            </div>
+            {campaignCreators.length === 0 ? (
+              <div className="surface-card">
+                  <EmptyState
+                    illustration="collaboration"
+                    title="No collaborations yet"
+                  description="Browse opportunities and accept your first brand deal."
+                  action={
+                    <Button onClick={() => navigate("/app/opportunities")}>Find opportunities</Button>
+                  }
+                />
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {campaignCreators.slice(0, 5).map((cc) => {
+                  const camp = campaigns.find((c) => c.id === cc.campaign_id);
+                  return (
+                    <li key={cc.id} className="surface-card flex flex-wrap items-center justify-between gap-3 p-4">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold tracking-tight">{camp?.name || "Campaign"}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {camp?.company_name || "—"}
+                          {cc.price ? ` · €${cc.price}` : ""}
+                          {cc.fit_score ? ` · Fit ${cc.fit_score}%` : ""}
+                        </p>
+                      </div>
+                      <StatusBadge status={cc.status} />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

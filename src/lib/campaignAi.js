@@ -96,6 +96,10 @@ Make everything specific, practical, and actionable for B2B LinkedIn content. Be
 /**
  * AI-assisted review of creator draft content.
  * Checks against campaign requirements, brand guidelines, key messages.
+ * 
+ * Returns: { status, checks, suggestions, summary }
+ * status: "passed" | "needs_revision"
+ * The company still has final approval authority.
  */
 export async function reviewContentWithAI(postContent, campaign) {
   const prompt = `You are a B2B content reviewer for a LinkedIn creator campaign. Review the creator's draft post against the campaign brief.
@@ -133,22 +137,27 @@ Be strict but constructive. Check for key messages, CTA, tone alignment, and no 
 }
 
 // ============================================================
-// CREATOR-SPECIFIC CONTENT ANGLES
+// CREATOR-SPECIFIC CONTENT ANGLES — Differentiator #7
 // ============================================================
 
 /**
  * Generate creator-specific content angle suggestions.
+ * Different creators get different angles based on their niche, audience, and expertise.
  */
 export async function generateCreatorContentAngles(creators, campaign) {
-  const creatorDescriptions = creators.map(c => `- ${c.name} (niche: ${c.niche}, followers: ${c.followers})`).join("\n");
+  const creatorDescriptions = creators.map((c, i) =>
+    `${i + 1}. ${c.name} — Niche: ${c.niche}, Audience: ${c.audience_type || "Not specified"}, Headline: ${c.headline || "Not specified"}`
+  ).join("\n");
 
-  const prompt = `You are a B2B content strategist. For each creator, suggest a unique content angle that fits their niche and audience.
+  const prompt = `You are a B2B content strategist. For each creator in a LinkedIn campaign, suggest a unique content angle that fits their niche, audience, and expertise. Do NOT give every creator identical instructions.
 
-Campaign: ${campaign?.campaign_name || "New campaign"}
-Product: ${campaign?.product || "Not specified"}
-Objective: ${campaign?.objective || "Not specified"}
+Campaign:
+- Product: ${campaign?.product || "Not specified"}
+- Objective: ${campaign?.objective || "Not specified"}
+- Target audience: ${campaign?.target_audience || "Not specified"}
+- Key messages: ${JSON.stringify(campaign?.key_messages || [])}
 
-Creators:
+Creators to generate angles for:
 ${creatorDescriptions}
 
 Generate JSON with unique content angles for each creator:
@@ -156,8 +165,10 @@ Generate JSON with unique content angles for each creator:
   "angles": [
     {
       "creator_name": "name",
-      "angle": "unique content angle specific to this creator",
-      "talking_points": ["point1", "point2"]
+      "angle_name": "short label for the angle (e.g., Founder story angle, Technical breakdown angle, Practical workflow angle)",
+      "angle_description": "2-3 sentences describing the specific content approach for this creator",
+      "suggested_hook": "an opening hook tailored to their style",
+      "key_talking_points": ["point1", "point2"]
     }
   ]
 }
@@ -198,235 +209,6 @@ Provide insights as JSON:
 Return ONLY valid JSON.`;
 
   return await generateJSON(prompt);
-}
-
-// ============================================================
-// AI CAMPAIGN COPILOT — Differentiator #1
-// ============================================================
-
-/**
- * Generate a full campaign strategy using AI.
- * Behaves like a campaign strategist, not just a text generator.
- * 
- * Input: product, website, industry, ICP, objective, geography, budget, outcome, keyMessage
- * Output: strategy, creator requirements, campaign brief, measurement plan
- */
-export async function generateCampaignStrategy(formData) {
-  const prompt = `You are a senior B2B creator marketing strategist. A company wants to launch a LinkedIn creator campaign. Generate a comprehensive campaign strategy.
-
-Company/Product Details:
-- Product or service: ${formData.product}
-- Website: ${formData.website || "Not provided"}
-- Industry: ${formData.industry || "Not provided"}
-- Ideal customer profile (ICP): ${formData.target_audience}
-- Campaign objective: ${formData.objective}
-- Geography: ${formData.geography || "Global"}
-- Budget: €${formData.budget}
-- Desired outcome: ${formData.desired_outcome}
-- Key message: ${formData.keyMessage || "Not specified"}
-
-Generate a structured campaign strategy as JSON with these sections:
-
-1. strategy:
-   - objective: refined campaign objective (1 sentence)
-   - target_audience: refined ICP description
-   - positioning: how the product should be positioned to this audience
-   - campaign_type: recommended campaign type (e.g., "Product launch", "Thought leadership", "Lead gen", "Brand awareness")
-   - estimated_duration: recommended campaign duration (e.g., "3-4 weeks")
-
-2. creator_requirements:
-   - recommended_niches: array of 2-3 niches that best fit this campaign
-   - audience_characteristics: what the creator's audience should look like
-   - geography: recommended creator geography
-   - experience_level: "emerging" | "established" | "expert"
-   - creator_size: recommended follower range (e.g., "10K-50K")
-   - estimated_creators: how many creators to activate for this budget
-
-3. campaign:
-   - campaign_name: catchy campaign name
-   - brief: 2-3 paragraph campaign brief for creators
-   - key_messages: array of 3-4 compelling key messages
-   - creator_guidelines: detailed guidelines (tone, format, what to include/avoid)
-   - content_direction: creative content direction and suggestions
-   - cta: recommended call-to-action for posts
-
-4. measurement:
-   - tracking_strategy: how to track and attribute results
-   - recommended_kpis: array of 3-4 KPIs to track
-   - attribution_approach: how to measure ROI
-
-Make everything specific, practical, and actionable for B2B LinkedIn content. Be concise but thorough.`;
-
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        strategy: {
-          type: "object",
-          properties: {
-            objective: { type: "string" },
-            target_audience: { type: "string" },
-            positioning: { type: "string" },
-            campaign_type: { type: "string" },
-            estimated_duration: { type: "string" },
-          },
-        },
-        creator_requirements: {
-          type: "object",
-          properties: {
-            recommended_niches: { type: "array", items: { type: "string" } },
-            audience_characteristics: { type: "string" },
-            geography: { type: "string" },
-            experience_level: { type: "string" },
-            creator_size: { type: "string" },
-            estimated_creators: { type: "number" },
-          },
-        },
-        campaign: {
-          type: "object",
-          properties: {
-            campaign_name: { type: "string" },
-            brief: { type: "string" },
-            key_messages: { type: "array", items: { type: "string" } },
-            creator_guidelines: { type: "string" },
-            content_direction: { type: "string" },
-            cta: { type: "string" },
-          },
-        },
-        measurement: {
-          type: "object",
-          properties: {
-            tracking_strategy: { type: "string" },
-            recommended_kpis: { type: "array", items: { type: "string" } },
-            attribution_approach: { type: "string" },
-          },
-        },
-      },
-    },
-  });
-
-  return result;
-}
-
-// ============================================================
-// AI CONTENT REVIEW — Differentiator #6
-// ============================================================
-
-/**
- * AI-assisted review of creator draft content.
- * Checks against campaign requirements, brand guidelines, key messages.
- * 
- * Returns: { status, checks, suggestions, summary }
- * status: "passed" | "needs_revision"
- * The company still has final approval authority.
- */
-export async function reviewContentWithAI(postContent, campaign) {
-  const prompt = `You are a B2B content reviewer for a LinkedIn creator campaign. Review the creator's draft post against the campaign brief.
-
-Campaign brief:
-- Objective: ${campaign?.objective || "Not specified"}
-- Target audience: ${campaign?.target_audience || "Not specified"}
-- Key messages: ${JSON.stringify(campaign?.key_messages || [])}
-- Creator guidelines: ${campaign?.creator_guidelines || "Not specified"}
-- Content direction: ${campaign?.content_direction || "Not specified"}
-- Desired outcome: ${campaign?.desired_outcome || "Not specified"}
-
-Creator's draft post:
-"""
-${postContent}
-"""
-
-Review the draft and provide a structured assessment as JSON:
-
-1. status: "passed" if the post is ready for approval, "needs_revision" if changes are needed
-2. checks: array of check objects, each with:
-   - name: the check name (e.g., "Key message inclusion", "CTA present", "Tone alignment", "Clarity", "No misleading claims")
-   - passed: boolean
-   - note: brief explanation
-3. suggestions: array of specific, actionable improvement suggestions (strings)
-4. summary: 1-2 sentence overall assessment
-
-Be strict but constructive. Check that key messages are conveyed, a clear CTA exists, the tone matches B2B professional standards, and there are no misleading claims or forbidden terms (like "guaranteed", "100%", "best in the world").`;
-
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        status: { type: "string" },
-        checks: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              passed: { type: "boolean" },
-              note: { type: "string" },
-            },
-          },
-        },
-        suggestions: { type: "array", items: { type: "string" } },
-        summary: { type: "string" },
-      },
-    },
-  });
-
-  return result;
-}
-
-// ============================================================
-// CREATOR-SPECIFIC CONTENT ANGLES — Differentiator #7
-// ============================================================
-
-/**
- * Generate creator-specific content angle suggestions.
- * Different creators get different angles based on their niche, audience, and expertise.
- */
-export async function generateCreatorContentAngles(creators, campaign) {
-  const prompt = `You are a B2B content strategist. For each creator in a LinkedIn campaign, suggest a unique content angle that fits their niche, audience, and expertise. Do NOT give every creator identical instructions.
-
-Campaign:
-- Product: ${campaign?.product || "Not specified"}
-- Objective: ${campaign?.objective || "Not specified"}
-- Target audience: ${campaign?.target_audience || "Not specified"}
-- Key messages: ${JSON.stringify(campaign?.key_messages || [])}
-
-Creators to generate angles for:
-${creators.map((c, i) => `${i + 1}. ${c.name} — Niche: ${c.niche}, Audience: ${c.audience_type || "Not specified"}, Headline: ${c.headline || "Not specified"}`).join("\n")}
-
-For each creator, provide a JSON object with:
-- creator_name: the creator's name
-- angle_name: a short label for the angle (e.g., "Founder story angle", "Technical breakdown angle", "Practical workflow angle")
-- angle_description: 2-3 sentences describing the specific content approach for this creator
-- suggested_hook: an opening hook tailored to their style
-- key_talking_points: array of 2-3 specific points this creator should cover
-
-Return as a JSON object with "angles" array.`;
-
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        angles: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              creator_name: { type: "string" },
-              angle_name: { type: "string" },
-              angle_description: { type: "string" },
-              suggested_hook: { type: "string" },
-              key_talking_points: { type: "array", items: { type: "string" } },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return result;
 }
 
 // ============================================================
@@ -479,31 +261,19 @@ Results:
 - Best performing creator: ${bestCreator?.name || "N/A"} (${bestCreator?.leads || 0} leads)
 
 Generate a structured report as JSON:
-- executive_summary: 2-3 sentence overview of campaign performance
-- key_results: array of 3-4 key result highlights (strings)
-- best_performing_content: description of what made the best content work
-- weakest_area: honest assessment of the weakest aspect of the campaign
-- key_insights: array of 2-3 analytical insights (strings)
-- recommendations: array of 3-4 actionable recommendations for the next campaign (strings)
-- next_campaign_suggestions: 2-3 specific suggestions for future campaigns`;
+{
+  "executive_summary": "2-3 sentence overview of campaign performance",
+  "key_results": ["3-4 key result highlights"],
+  "best_performing_content": "description of what made the best content work",
+  "weakest_area": "honest assessment of the weakest aspect of the campaign",
+  "key_insights": ["2-3 analytical insights"],
+  "recommendations": ["3-4 actionable recommendations for the next campaign"],
+  "next_campaign_suggestions": ["2-3 specific suggestions for future campaigns"]
+}
 
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        executive_summary: { type: "string" },
-        key_results: { type: "array", items: { type: "string" } },
-        best_performing_content: { type: "string" },
-        weakest_area: { type: "string" },
-        key_insights: { type: "array", items: { type: "string" } },
-        recommendations: { type: "array", items: { type: "string" } },
-        next_campaign_suggestions: { type: "array", items: { type: "string" } },
-      },
-    },
-  });
+Return ONLY valid JSON.`;
 
-  return result;
+  return await generateJSON(prompt);
 }
 
 // ============================================================
@@ -534,25 +304,15 @@ Recent performance data:
 - Total metrics recorded: ${metrics.length}
 
 Generate growth insights as JSON:
-- best_topics: array of 2-3 topics that likely perform best for this creator based on their niche
-- engagement_trend: 1 sentence on their engagement trajectory
-- content_tip: 1 specific actionable tip to improve their content performance
-- positioning_tip: 1 suggestion on how to position themselves for better brand deals
-- earnings_opportunity: 1 sentence on an earnings opportunity they might be missing`;
+{
+  "best_topics": ["2-3 topics that likely perform best for this creator based on their niche"],
+  "engagement_trend": "1 sentence on their engagement trajectory",
+  "content_tip": "1 specific actionable tip to improve their content performance",
+  "positioning_tip": "1 suggestion on how to position themselves for better brand deals",
+  "earnings_opportunity": "1 sentence on an earnings opportunity they might be missing"
+}
 
-  const result = await base44.integrations.Core.InvokeLLM({
-    prompt,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        best_topics: { type: "array", items: { type: "string" } },
-        engagement_trend: { type: "string" },
-        content_tip: { type: "string" },
-        positioning_tip: { type: "string" },
-        earnings_opportunity: { type: "string" },
-      },
-    },
-  });
+Return ONLY valid JSON.`;
 
-  return result;
+  return await generateJSON(prompt);
 }

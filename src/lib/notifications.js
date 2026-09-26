@@ -1,4 +1,4 @@
-import { db } from "@/api/base44Client";
+import { db, base44 } from "@/api/base44Client";
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp } from "firebase/firestore";
 
 /**

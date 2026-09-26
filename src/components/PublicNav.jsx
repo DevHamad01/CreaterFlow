@@ -1,124 +1,215 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
+import { Button } from "@/components/ui/button";
+
+const SOLUTIONS = [
+  { label: "For companies", path: "/for-companies", desc: "Find creators and track pipeline" },
+  { label: "For agencies", path: "/for-agencies", desc: "Manage multiple client campaigns" },
+  { label: "For creators", path: "/for-creators", desc: "Get paid to post on LinkedIn" },
+];
+
+const LINKS = [
+  { label: "Marketplace", path: "/marketplace" },
+  { label: "How it works", path: "/how-it-works" },
+  { label: "Pricing", path: "/pricing" },
+];
+
+export function Logo({ compact = false, onBrand = false }) {
+  return (
+    <span className="flex items-center gap-2.5">
+      <span
+        aria-hidden="true"
+        className={`flex h-9 w-9 items-center justify-center rounded-xl font-display text-sm font-bold ${
+          onBrand
+            ? "bg-primary-foreground/15 text-primary-foreground"
+            : "bg-brand-gradient text-primary-foreground shadow-glow"
+        }`}
+      >
+        C
+      </span>
+      {!compact && (
+        <span className={`font-display text-lg font-semibold tracking-tight ${onBrand ? "text-primary-foreground" : ""}`}>
+          CreatorFlow
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function PublicNav() {
   const [open, setOpen] = useState(false);
   const [solutionsOpen, setSolutionsOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuth();
 
-  const solutions = [
-    { label: "For companies", path: "/for-companies", desc: "Find creators and track pipeline" },
-    { label: "For agencies", path: "/for-agencies", desc: "Manage multiple client campaigns" },
-    { label: "For creators", path: "/for-creators", desc: "Get paid to post on LinkedIn" },
-  ];
+  // Close both menus on navigation
+  useEffect(() => {
+    setOpen(false);
+    setSolutionsOpen(false);
+  }, [location.pathname]);
 
-  const links = [
-    { label: "Marketplace", path: "/marketplace" },
-    { label: "How it works", path: "/how-it-works" },
-    { label: "Pricing", path: "/pricing" },
-  ];
+  // Condense the bar once the page scrolls
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Dismiss the solutions menu on outside click / Escape
+  useEffect(() => {
+    if (!solutionsOpen) return;
+    const onPointerDown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setSolutionsOpen(false);
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setSolutionsOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [solutionsOpen]);
+
+  const isActive = (path) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/60">
-      <nav className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
-            <span className="font-semibold text-lg text-slate-900 tracking-tight">CreatorFlow</span>
+    <header
+      // Explicit property lists, not `transition-all`. The header animates on
+      // every scroll-threshold crossing, and `all` would also transition
+      // layout properties and `backdrop-filter`, forcing a full-page reflow
+      // plus a repaint of the blurred backdrop layer.
+      className={`sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl transition-[border-color,box-shadow] duration-200 ease-smooth ${
+        scrolled ? "border-border shadow-xs" : "border-transparent"
+      }`}
+    >
+      <nav className="container-page" aria-label="Main">
+        {/* Height is animated deliberately: it's a single sticky element
+            changing size once per scroll-direction flip, which is a bounded
+            one-off layout rather than a per-frame cost. Listed explicitly so
+            nothing else (padding, margin, font-size) can hitch alongside it. */}
+        <div className={`flex items-center justify-between transition-[height] duration-200 ease-smooth ${scrolled ? "h-14" : "h-16"}`}>
+          <Link to="/" className="rounded-lg" aria-label="CreatorFlow home">
+            <Logo />
           </Link>
 
-          <div className="hidden md:flex items-center gap-7">
-            {/* Solutions dropdown */}
-            <div className="relative">
+          {/* Desktop links */}
+          <div className="hidden items-center gap-1 md:flex">
+            <div className="relative" ref={dropdownRef}>
               <button
-                onClick={() => setSolutionsOpen(!solutionsOpen)}
-                onMouseLeave={() => setSolutionsOpen(false)}
-                className="flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                type="button"
+                onClick={() => setSolutionsOpen((v) => !v)}
+                aria-expanded={solutionsOpen}
+                aria-haspopup="true"
+                className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive("/for-companies") || isActive("/for-agencies") || isActive("/for-creators")
+                    ? "text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
               >
                 Solutions
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${solutionsOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  aria-hidden="true"
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${solutionsOpen ? "rotate-180" : ""}`}
+                />
               </button>
               {solutionsOpen && (
-                <div
-                  onMouseEnter={() => setSolutionsOpen(true)}
-                  onMouseLeave={() => setSolutionsOpen(false)}
-                  className="absolute top-full left-0 mt-1 w-72 bg-white rounded-xl border border-slate-200 shadow-lg py-2"
-                >
-                  {solutions.map((s) => (
+                <div className="absolute left-0 top-full mt-2 w-72 overflow-hidden rounded-2xl border border-border/80 bg-popover p-1.5 shadow-overlay">
+                  {SOLUTIONS.map((s) => (
                     <Link
                       key={s.path}
                       to={s.path}
-                      onClick={() => setSolutionsOpen(false)}
-                      className="block px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                      className="block rounded-xl px-3 py-2.5 transition-colors hover:bg-muted"
                     >
-                      <p className="text-sm font-medium text-slate-900">{s.label}</p>
-                      <p className="text-xs text-slate-500">{s.desc}</p>
+                      <p className="text-sm font-semibold text-foreground">{s.label}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{s.desc}</p>
                     </Link>
                   ))}
                 </div>
               )}
             </div>
-            {links.map((l) => (
-              <Link key={l.path} to={l.path} className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+
+            {LINKS.map((l) => (
+              <Link
+                key={l.path}
+                to={l.path}
+                aria-current={isActive(l.path) ? "page" : undefined}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive(l.path)
+                    ? "text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
                 {l.label}
               </Link>
             ))}
           </div>
 
-          <div className="hidden md:flex items-center gap-3">
+          {/* Desktop actions */}
+          <div className="hidden items-center gap-2 md:flex">
             {isAuthenticated ? (
-              <button onClick={() => navigate("/app")} className="text-sm font-medium px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors">
-                Go to dashboard
-              </button>
+              <Button onClick={() => navigate("/app")}>Go to dashboard</Button>
             ) : (
               <>
-                <button onClick={() => navigate("/login")} className="text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors">
-                  Sign in
-                </button>
-                <button onClick={() => navigate("/signup")} className="text-sm font-medium px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors">
-                  Get started
-                </button>
+                <Button variant="ghost" onClick={() => navigate("/login")}>Sign in</Button>
+                <Button onClick={() => navigate("/signup")}>Get started</Button>
               </>
             )}
           </div>
 
-          <button className="md:hidden p-2" onClick={() => setOpen(!open)}>
-            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          {/* Mobile trigger */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="public-mobile-menu"
+            aria-label={open ? "Close menu" : "Open menu"}
+          >
+            {open ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
+          </Button>
         </div>
 
+        {/* Mobile panel */}
         {open && (
-          <div className="md:hidden border-t border-slate-200 py-4 space-y-1">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 pt-2 pb-1">Solutions</p>
-            {solutions.map((s) => (
-              <Link key={s.path} to={s.path} onClick={() => setOpen(false)} className="block px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">
+          <div id="public-mobile-menu" className="border-t border-border/70 py-4 md:hidden">
+            <p className="eyebrow px-3 pb-1.5">Solutions</p>
+            {SOLUTIONS.map((s) => (
+              <Link
+                key={s.path}
+                to={s.path}
+                className="block rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
                 {s.label}
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{s.desc}</span>
               </Link>
             ))}
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 pt-3 pb-1">Product</p>
-            {links.map((l) => (
-              <Link key={l.path} to={l.path} onClick={() => setOpen(false)} className="block px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">
+            <p className="eyebrow px-3 pb-1.5 pt-4">Product</p>
+            {LINKS.map((l) => (
+              <Link
+                key={l.path}
+                to={l.path}
+                className="block rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
                 {l.label}
               </Link>
             ))}
-            <div className="flex gap-3 pt-3 px-3">
+            <div className="mt-4 flex flex-col gap-2 px-3">
               {isAuthenticated ? (
-                <button onClick={() => { setOpen(false); navigate("/app"); }} className="flex-1 text-sm font-medium px-4 py-2 rounded-lg bg-slate-900 text-white">
-                  Go to dashboard
-                </button>
+                <Button onClick={() => navigate("/app")}>Go to dashboard</Button>
               ) : (
                 <>
-                  <button onClick={() => { setOpen(false); navigate("/login"); }} className="flex-1 text-sm font-medium px-4 py-2 rounded-lg border border-slate-200 text-slate-700">
-                    Sign in
-                  </button>
-                  <button onClick={() => { setOpen(false); navigate("/signup"); }} className="flex-1 text-sm font-medium px-4 py-2 rounded-lg bg-slate-900 text-white">
-                    Sign up
-                  </button>
+                  <Button variant="outline" onClick={() => navigate("/login")}>Sign in</Button>
+                  <Button onClick={() => navigate("/signup")}>Sign up</Button>
                 </>
               )}
             </div>

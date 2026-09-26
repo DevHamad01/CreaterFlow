@@ -1,28 +1,104 @@
-export default function StatCard({ label, value, change, icon: Icon, accent = "blue" }) {
-  const accents = {
-    blue: "bg-blue-50 text-blue-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    purple: "bg-purple-50 text-purple-600",
-    slate: "bg-slate-100 text-slate-600",
-  };
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * @typedef {object} StatCardProps
+ * @property {string} label
+ * @property {any} value
+ * @property {number} [change]
+ * @property {any} [icon]
+ * @property {"primary" | "success" | "warning" | "iris" | "neutral"} [accent]
+ * @property {string} [hint]
+ * @property {boolean} [loading]
+ * @property {boolean} [dense]
+ * @property {string} [className]
+ */
+
+const ACCENTS = {
+  primary: { chip: "bg-primary/10 text-primary", positive: "text-success", negative: "text-danger" },
+  success: { chip: "bg-success/10 text-success", positive: "text-success", negative: "text-danger" },
+  warning: { chip: "bg-warning/10 text-warning", positive: "text-success", negative: "text-danger" },
+  iris: { chip: "bg-iris/10 text-iris", positive: "text-success", negative: "text-danger" },
+  neutral: { chip: "bg-muted text-muted-foreground", positive: "text-success", negative: "text-danger" },
+};
+
+/**
+ * @param {StatCardProps} props
+ */
+export default function StatCard({
+  label,
+  value,
+  change,
+  icon: Icon,
+  accent = "primary",
+  hint,
+  loading = false,
+  dense = false,
+  className,
+}) {
+  const tone = ACCENTS[accent] || ACCENTS.primary;
+  const up = change > 0;
+  const flat = change === 0;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm text-slate-500 font-medium">{label}</span>
-        {Icon && <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${accents[accent]}`}>
-          <Icon className="w-4 h-4" />
-        </div>}
-      </div>
-      <div className="flex items-baseline gap-2">
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
-        {change && (
-          <span className={`text-xs font-medium ${change > 0 ? "text-emerald-600" : "text-red-500"}`}>
-            {change > 0 ? "+" : ""}{change}%
+    <div className={cn("surface-card surface-card-hover", dense ? "p-4" : "p-5", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        {Icon && (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "inline-flex flex-shrink-0 items-center justify-center rounded-lg",
+              dense ? "h-8 w-8" : "h-9 w-9",
+              tone.chip
+            )}
+          >
+            <Icon aria-hidden="true" className={dense ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </span>
         )}
       </div>
+
+      {loading ? (
+        <div className="mt-3 space-y-2">
+          <Skeleton className="h-8 w-24 rounded-lg" />
+          <Skeleton className="h-3 w-16 rounded" />
+        </div>
+      ) : (
+        <>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span
+              className={cn(
+                "font-display font-semibold tracking-tight",
+                dense ? "text-lg" : "text-2xl"
+              )}
+            >
+              {value}
+            </span>
+            {change !== undefined && (
+              <span
+                className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
+                  flat ? "text-muted-foreground" : up ? tone.positive : tone.negative
+                }`}
+              >
+                {!flat && (
+                  <svg
+                    viewBox="0 0 12 12"
+                    className={`h-2.5 w-2.5 ${up ? "" : "rotate-180"}`}
+                    aria-hidden="true"
+                    fill="currentColor"
+                  >
+                    <path d="M6 1.5 11 8H1z" />
+                  </svg>
+                )}
+                {up ? "+" : ""}
+                {change}%
+              </span>
+            )}
+          </div>
+          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+        </>
+      )}
     </div>
   );
 }
+

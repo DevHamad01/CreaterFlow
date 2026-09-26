@@ -1,19 +1,47 @@
-import { useEffect, useState } from "react";
-import { firestoreService } from "@/lib/firestore-service";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { Loader2, Check, BadgeCheck } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import EmptyState from "@/components/EmptyState";
+import { toast } from "@/hooks/use-toast";
+import { Loader2, Check, BadgeCheck, UserRound, AlertTriangle, RefreshCw } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 
-const NICHES = ["AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech", "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity"];
+const NICHES = [
+  "AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering",
+  "Fintech", "HR & Recruiting", "Product & Design", "RevOps & Automation",
+  "Data & Analytics", "Cybersecurity",
+];
+
+const AVAILABILITY = [
+  { value: "available", label: "Available" },
+  { value: "limited", label: "Limited" },
+  { value: "booked", label: "Booked" },
+];
 
 export default function CreatorProfileEdit() {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const uid = useId();
 
-  useEffect(() => {
-    if (!user) return;
+  const load = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     // Try to find existing creator profile by name
     base44.entities.Creator.filter({ name: user.full_name })
       .then((creators) => {
@@ -47,8 +75,16 @@ export default function CreatorProfileEdit() {
           });
         }
       })
+      .catch((err) => {
+        console.error("CreatorProfileEdit: load failed", err);
+        setError("We couldn't load your profile. Check your connection and try again.");
+      })
       .finally(() => setLoading(false));
   }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const update = (key, val) => setProfile((p) => ({ ...p, [key]: val }));
 
@@ -62,116 +98,241 @@ export default function CreatorProfileEdit() {
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      toast({ title: "Profile saved", description: "Brands will see your latest details." });
     } catch (err) {
-      alert("Failed to save: " + (err.message || "Unknown error"));
+      console.error("CreatorProfileEdit: save failed", err);
+      toast({
+        title: "Failed to save",
+        description: err.message || "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div className="animate-pulse space-y-4"><div className="h-8 bg-slate-200 rounded w-48" /><div className="h-96 bg-slate-100 rounded-2xl" /></div>;
+  if (loading) {
+    return (
+      <div className="max-w-2xl space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading your profile</span>
+        <div className="space-y-2.5">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-96 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+        <EmptyState
+          icon={AlertTriangle}
+          title="We couldn't load your profile"
+          description={error}
+          action={
+            <Button onClick={load}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8">
+        <EmptyState
+          icon={UserRound}
+          title="Sign in to edit your profile"
+          description="Add your name and audience details so brands can find you in the marketplace."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">My profile</h1>
-        <p className="text-sm text-slate-500 mt-1">This is how brands see you in the marketplace</p>
-      </div>
+      <PageHeader
+        title="My profile"
+        icon={UserRound}
+        description="This is how brands see you in the marketplace"
+      />
 
       {/* Profile preview */}
-      <div className="bg-gradient-to-b from-sky-50/60 to-white rounded-2xl border border-slate-200 p-5">
+      <div className="rounded-2xl border border-border bg-gradient-to-b from-primary/10 to-background p-5">
         <div className="flex items-center gap-4">
           <img
             src={profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}&backgroundColor=2563eb`}
             alt=""
-            className="w-16 h-16 rounded-2xl bg-slate-100"
+            className="h-16 w-16 rounded-2xl bg-muted object-cover"
           />
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-slate-900">{profile.name || "Your name"}</h2>
-              {profile.verified && <BadgeCheck className="w-4 h-4 text-blue-500" />}
+              <h2 className="truncate font-semibold tracking-tight">{profile.name || "Your name"}</h2>
+              {profile.verified && (
+                <BadgeCheck aria-label="Verified creator" className="h-4 w-4 flex-shrink-0 text-primary" />
+              )}
             </div>
-            <p className="text-sm text-slate-500">{profile.headline || "Add a headline"}</p>
-            <p className="text-xs text-slate-400 mt-1">{profile.niche} · €{profile.price_per_post}/post</p>
+            <p className="truncate text-sm text-muted-foreground">{profile.headline || "Add a headline"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {profile.niche} · €{profile.price_per_post}/post
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-        <h2 className="font-semibold text-slate-900">Profile information</h2>
+      <section className="surface-card space-y-4 p-6" aria-labelledby={`${uid}-details`}>
+        <h2 id={`${uid}-details`} className="font-semibold tracking-tight">Profile information</h2>
 
         <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Headline</label>
-          <input value={profile.headline} onChange={(e) => update("headline", e.target.value)} placeholder="B2B & AI Creator · Sales workflows" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <Label htmlFor={`${uid}-headline`}>Headline</Label>
+          <Input
+            id={`${uid}-headline`}
+            value={profile.headline}
+            onChange={(e) => update("headline", e.target.value)}
+            placeholder="B2B & AI Creator · Sales workflows"
+          />
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Bio</label>
-          <textarea value={profile.bio} onChange={(e) => update("bio", e.target.value)} rows={3} placeholder="Tell brands about your content and audience..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+          <Label htmlFor={`${uid}-bio`}>Bio</Label>
+          <Textarea
+            id={`${uid}-bio`}
+            rows={3}
+            value={profile.bio}
+            onChange={(e) => update("bio", e.target.value)}
+            placeholder="Tell brands about your content and audience..."
+          />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Niche</label>
-            <select value={profile.niche} onChange={(e) => update("niche", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white">
-              {NICHES.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <Label htmlFor={`${uid}-niche`}>Niche</Label>
+            <Select value={profile.niche} onValueChange={(v) => update("niche", v)}>
+              <SelectTrigger id={`${uid}-niche`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NICHES.map((n) => (
+                  <SelectItem key={n} value={n}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Price per post (€)</label>
-            <input type="number" value={profile.price_per_post} onChange={(e) => update("price_per_post", Number(e.target.value))} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <Label htmlFor={`${uid}-price`}>Price per post (€)</Label>
+            <Input
+              id={`${uid}-price`}
+              type="number"
+              min={0}
+              value={profile.price_per_post}
+              onChange={(e) => update("price_per_post", Number(e.target.value))}
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Country</label>
-            <input value={profile.country} onChange={(e) => update("country", e.target.value)} placeholder="France" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <Label htmlFor={`${uid}-country`}>Country</Label>
+            <Input
+              id={`${uid}-country`}
+              value={profile.country}
+              onChange={(e) => update("country", e.target.value)}
+              placeholder="France"
+            />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">City</label>
-            <input value={profile.city} onChange={(e) => update("city", e.target.value)} placeholder="Paris" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <Label htmlFor={`${uid}-city`}>City</Label>
+            <Input
+              id={`${uid}-city`}
+              value={profile.city}
+              onChange={(e) => update("city", e.target.value)}
+              placeholder="Paris"
+            />
           </div>
         </div>
+      </section>
+
+      <section className="surface-card space-y-4 p-6" aria-labelledby={`${uid}-audience`}>
+        <h2 id={`${uid}-audience`} className="font-semibold tracking-tight">Audience</h2>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor={`${uid}-followers`}>LinkedIn followers</Label>
+            <Input
+              id={`${uid}-followers`}
+              type="number"
+              min={0}
+              value={profile.linkedin_followers}
+              onChange={(e) => update("linkedin_followers", Number(e.target.value))}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${uid}-engagement`}>Engagement rate (%)</Label>
+            <Input
+              id={`${uid}-engagement`}
+              type="number"
+              step="0.1"
+              min={0}
+              value={profile.engagement_rate}
+              onChange={(e) => update("engagement_rate", Number(e.target.value))}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor={`${uid}-audience-type`}>Audience type</Label>
+          <Input
+            id={`${uid}-audience-type`}
+            value={profile.audience_type}
+            onChange={(e) => update("audience_type", e.target.value)}
+            placeholder="Founders & Sales Leaders"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor={`${uid}-availability`}>Availability</Label>
+          <Select
+            value={profile.availability}
+            onValueChange={(v) => update("availability", v)}
+          >
+            <SelectTrigger id={`${uid}-availability`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AVAILABILITY.map((a) => (
+                <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? (
+            <>
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : saved ? (
+            <>
+              <Check aria-hidden="true" className="h-4 w-4" />
+              Saved!
+            </>
+          ) : (
+            "Save profile"
+          )}
+        </Button>
+        <span className="sr-only" role="status" aria-live="polite">
+          {saving ? "Saving your profile" : saved ? "Profile saved" : ""}
+        </span>
       </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-        <h2 className="font-semibold text-slate-900">Audience</h2>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">LinkedIn followers</label>
-            <input type="number" value={profile.linkedin_followers} onChange={(e) => update("linkedin_followers", Number(e.target.value))} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Engagement rate (%)</label>
-            <input type="number" step="0.1" value={profile.engagement_rate} onChange={(e) => update("engagement_rate", Number(e.target.value))} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Audience type</label>
-          <input value={profile.audience_type} onChange={(e) => update("audience_type", e.target.value)} placeholder="Founders & Sales Leaders" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">Availability</label>
-          <select value={profile.availability} onChange={(e) => update("availability", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white">
-            <option value="available">Available</option>
-            <option value="limited">Limited</option>
-            <option value="booked">Booked</option>
-          </select>
-        </div>
-      </div>
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
-      >
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
-        {saving ? "Saving..." : saved ? "Saved!" : "Save profile"}
-      </button>
     </div>
   );
 }

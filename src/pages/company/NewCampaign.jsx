@@ -1,19 +1,28 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { firestoreService } from "@/lib/firestore-service";
 import { useAuth } from "@/lib/AuthContext";
 import { generateCampaignStrategy } from "@/lib/campaignAi";
 import { computeCreatorMatch, rankCreatorsForCampaign, formatNumber, formatCurrency } from "@/lib/intelligence";
 import CampaignSimulator from "@/components/intelligence/CampaignSimulator";
 import { TemplateSelector, SaveTemplateModal } from "@/components/TemplateSelector";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
 import {
   Sparkles, Loader2, ArrowRight, ArrowLeft, Check, Target,
-  Users, FileText, BarChart3, Lightbulb, MapPin, Wallet,
-  Search, Star, AlertCircle, Rocket, TrendingUp, FolderOpen, Save
+  Users, FileText, BarChart3, Lightbulb, AlertCircle, Rocket, FolderOpen, Save, UsersRound
 } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+import { cn } from "@/lib/utils";
 
 const NICHES = ["AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech", "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity"];
 const OBJECTIVES = ["Brand awareness", "Lead generation", "Product launch", "Thought leadership", "Trial signups", "Event promotion", "Content amplification"];
+
+const selectClass =
+  "h-10 w-full rounded-xl border border-input bg-card px-3.5 text-sm text-foreground transition-colors focus-visible:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40";
 
 export default function NewCampaign() {
   const navigate = useNavigate();
@@ -23,6 +32,8 @@ export default function NewCampaign() {
   const [saving, setSaving] = useState(false);
   const [strategy, setStrategy] = useState(null);
   const [allCreators, setAllCreators] = useState([]);
+  const [creatorsLoading, setCreatorsLoading] = useState(false);
+  const [creatorsError, setCreatorsError] = useState(null);
   const [selectedCreators, setSelectedCreators] = useState([]);
   const [genError, setGenError] = useState(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -72,13 +83,29 @@ export default function NewCampaign() {
         measurement: { tracking_strategy: "Use unique tracking links", recommended_kpis: ["Impressions", "Clicks", "Leads", "CPL"], attribution_approach: "UTM tracking per creator" },
       });
     }
+    toast({ title: "Template applied", description: tpl.name });
   };
 
   // Load creators for matching step
   useEffect(() => {
-    if (step === 3 && allCreators.length === 0) {
-      base44.entities.Creator.list("-linkedin_followers", 100).then(setAllCreators);
-    }
+    if (step !== 3 || allCreators.length > 0) return;
+    let cancelled = false;
+    setCreatorsLoading(true);
+    setCreatorsError(null);
+    base44.entities.Creator.list("-linkedin_followers", 100)
+      .then((rows) => {
+        if (!cancelled) setAllCreators(rows || []);
+      })
+      .catch((err) => {
+        console.error("NewCampaign: creator list failed", err);
+        if (!cancelled) setCreatorsError("We couldn't load the creator directory. Retry or skip to review.");
+      })
+      .finally(() => {
+        if (!cancelled) setCreatorsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [step, allCreators.length]);
 
   // Build a pseudo-campaign object for matching
@@ -195,9 +222,15 @@ export default function NewCampaign() {
         });
       }
 
+      toast({ title: "Campaign created", description: strategy?.campaign?.campaign_name || form.name });
       navigate(`/app/campaigns/${campaign.id}`);
     } catch (err) {
-      alert("Failed to create campaign: " + (err.message || "Unknown error"));
+      console.error("NewCampaign: create failed", err);
+      toast({
+        title: "We couldn't create your campaign",
+        description: err.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -211,435 +244,671 @@ export default function NewCampaign() {
     { num: 5, label: "Review", icon: Check },
   ];
 
+  const missing = [
+    !form.product && "product or service",
+    !form.objective && "objective",
+    !form.target_audience && "ideal customer profile",
+    !form.desired_outcome && "desired outcome",
+  ].filter(Boolean);
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <button onClick={() => navigate("/app/campaigns")} className="text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1 mb-4">
-          <ArrowLeft className="w-4 h-4" /> Back to campaigns
-        </button>
-        <h1 className="text-2xl font-bold text-slate-900">AI Campaign Copilot</h1>
-        <p className="text-sm text-slate-500 mt-1">From strategy to creator selection — powered by AI</p>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/app/campaigns")} className="-ml-2 mb-3">
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Back to campaigns
+        </Button>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">AI Campaign Copilot</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          From strategy to creator selection — powered by AI
+        </p>
       </div>
 
-      {/* Progress steps */}
-      <div className="flex items-center gap-1">
-        {steps.map((s, i) => (
-          <div key={s.num} className="flex items-center flex-1">
-            <div className={`flex items-center gap-2 ${s.num <= step ? "text-blue-600" : "text-slate-400"}`}>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${s.num <= step ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"}`}>
-                {s.num < step ? <Check className="w-4 h-4" /> : s.num}
-              </div>
-              <span className="text-xs font-medium hidden sm:block">{s.label}</span>
-            </div>
-            {i < steps.length - 1 && <div className={`flex-1 h-0.5 mx-2 ${s.num < step ? "bg-blue-600" : "bg-slate-200"}`} />}
-          </div>
-        ))}
-      </div>
+      <nav aria-label="Campaign creation progress">
+        <ol className="flex items-center gap-1">
+          {steps.map((s, i) => {
+            const done = s.num < step;
+            const current = s.num === step;
+            return (
+              <li key={s.num} className="flex flex-1 items-center gap-1">
+                <span
+                  aria-current={current ? "step" : undefined}
+                  className={cn(
+                    "flex items-center gap-2",
+                    s.num <= step ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold",
+                      s.num <= step
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {done ? <Check aria-hidden="true" className="h-4 w-4" /> : s.num}
+                  </span>
+                  <span className="hidden text-xs font-semibold sm:block">{s.label}</span>
+                </span>
+                {i < steps.length - 1 && (
+                  <span
+                    aria-hidden="true"
+                    className={cn("mx-2 h-0.5 flex-1 rounded-full", done ? "bg-primary" : "bg-border")}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
 
-      {/* Step 1: Basics */}
       {step === 1 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Campaign basics</h2>
-            <button
-              onClick={() => setShowTemplateSelector(true)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1.5"
+        <div className="surface-card space-y-4 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-4">
+            <h2 className="font-semibold tracking-tight">Campaign basics</h2>
+            <Button variant="ghost" size="sm" onClick={() => setShowTemplateSelector(true)}>
+              <FolderOpen aria-hidden="true" className="h-4 w-4" />
+              Use template
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="product">Product or service *</Label>
+            <Input
+              id="product"
+              value={form.product}
+              onChange={(e) => update("product", e.target.value)}
+              placeholder="e.g. Lemlist AI Outreach"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                value={form.website}
+                onChange={(e) => update("website", e.target.value)}
+                placeholder="company.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
+                value={form.industry}
+                onChange={(e) => update("industry", e.target.value)}
+                placeholder="SaaS, Fintech..."
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="objective">Campaign objective *</Label>
+            <select
+              id="objective"
+              value={form.objective}
+              onChange={(e) => update("objective", e.target.value)}
+              className={selectClass}
             >
-              <FolderOpen className="w-4 h-4" /> Use template
-            </button>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Product or service *</label>
-            <input value={form.product} onChange={(e) => update("product", e.target.value)} placeholder="e.g. Lemlist AI Outreach" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Website</label>
-              <input value={form.website} onChange={(e) => update("website", e.target.value)} placeholder="company.com" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Industry</label>
-              <input value={form.industry} onChange={(e) => update("industry", e.target.value)} placeholder="SaaS, Fintech..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Campaign objective *</label>
-            <select value={form.objective} onChange={(e) => update("objective", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Select objective...</option>
-              {OBJECTIVES.map((o) => <option key={o} value={o}>{o}</option>)}
+              {OBJECTIVES.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
             </select>
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Ideal customer profile (ICP) *</label>
-            <input value={form.target_audience} onChange={(e) => update("target_audience", e.target.value)} placeholder="VP Sales at B2B SaaS companies" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+          <div className="space-y-1.5">
+            <Label htmlFor="target-audience">Ideal customer profile (ICP) *</Label>
+            <Input
+              id="target-audience"
+              value={form.target_audience}
+              onChange={(e) => update("target_audience", e.target.value)}
+              placeholder="VP Sales at B2B SaaS companies"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Geography</label>
-              <input value={form.geography} onChange={(e) => update("geography", e.target.value)} placeholder="US, Europe, Global..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="geography">Geography</Label>
+              <Input
+                id="geography"
+                value={form.geography}
+                onChange={(e) => update("geography", e.target.value)}
+                placeholder="US, Europe, Global..."
+              />
             </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Budget (€) *</label>
-              <input type="number" value={form.budget} onChange={(e) => update("budget", Number(e.target.value))} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Lead target (optional)</label>
-            <input type="number" value={form.lead_target} onChange={(e) => update("lead_target", Number(e.target.value))} placeholder="e.g. 50" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <p className="text-xs text-slate-400 mt-1">Set a goal to trigger automatic notifications when you hit 50% and 100% of this target</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Desired outcome *</label>
-            <input value={form.desired_outcome} onChange={(e) => update("desired_outcome", e.target.value)} placeholder="Free trial signups" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1.5">Key message (optional)</label>
-            <textarea value={form.keyMessage} onChange={(e) => update("keyMessage", e.target.value)} rows={2} placeholder="The main message you want creators to convey..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">Start date</label>
-              <input type="date" value={form.start_date} onChange={(e) => update("start_date", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">End date</label>
-              <input type="date" value={form.end_date} onChange={(e) => update("end_date", e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="space-y-1.5">
+              <Label htmlFor="budget">Budget (€) *</Label>
+              <Input
+                id="budget"
+                type="number"
+                value={form.budget}
+                onChange={(e) => update("budget", Number(e.target.value))}
+              />
             </div>
           </div>
-          <button
+
+          <div className="space-y-1.5">
+            <Label htmlFor="lead-target">Lead target (optional)</Label>
+            <Input
+              id="lead-target"
+              type="number"
+              value={form.lead_target}
+              onChange={(e) => update("lead_target", Number(e.target.value))}
+              placeholder="e.g. 50"
+              aria-describedby="lead-target-hint"
+            />
+            <p id="lead-target-hint" className="text-xs text-muted-foreground">
+              Set a goal to trigger automatic notifications when you hit 50% and 100% of this target
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="desired-outcome">Desired outcome *</Label>
+            <Input
+              id="desired-outcome"
+              value={form.desired_outcome}
+              onChange={(e) => update("desired_outcome", e.target.value)}
+              placeholder="Free trial signups"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="key-message">Key message (optional)</Label>
+            <Textarea
+              id="key-message"
+              rows={2}
+              value={form.keyMessage}
+              onChange={(e) => update("keyMessage", e.target.value)}
+              placeholder="The main message you want creators to convey..."
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="start-date">Start date</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={form.start_date}
+                onChange={(e) => update("start_date", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="end-date">End date</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={form.end_date}
+                onChange={(e) => update("end_date", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {missing.length > 0 && (
+            <p className="text-xs text-muted-foreground" role="status">
+              Add your {missing.join(", ")} to continue.
+            </p>
+          )}
+
+          <Button
+            className="w-full"
+            size="lg"
             onClick={() => setStep(2)}
-            disabled={!form.product || !form.objective || !form.target_audience || !form.desired_outcome}
-            className="w-full py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            disabled={missing.length > 0}
           >
-            Generate AI strategy <ArrowRight className="w-4 h-4" />
-          </button>
+            Generate AI strategy
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
-      {/* Step 2: AI Strategy */}
       {step === 2 && (
         <div className="space-y-4">
           {!strategy && (
-            <div className="bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border border-blue-100 p-8 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-7 h-7 text-white" />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-900 mb-2">AI Campaign Strategist</h2>
-              <p className="text-sm text-slate-600 mb-6 max-w-md mx-auto">
-                Our AI will analyze your inputs and generate a complete campaign strategy: positioning, creator requirements, brief, key messages, and measurement plan.
-              </p>
-              <button
-                onClick={generateStrategy}
-                disabled={generating}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-background p-8 text-center">
+              <span
+                aria-hidden="true"
+                className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-glow"
               >
-                {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing & generating strategy...</> : <><Sparkles className="w-4 h-4" /> Generate campaign strategy</>}
-              </button>
+                <Sparkles className="h-7 w-7" />
+              </span>
+              <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">AI Campaign Strategist</h2>
+              <p className="mx-auto mb-6 max-w-md text-sm text-muted-foreground">
+                Our AI will analyze your inputs and generate a complete campaign strategy: positioning,
+                creator requirements, brief, key messages, and measurement plan.
+              </p>
+              <Button size="lg" onClick={generateStrategy} disabled={generating}>
+                {generating ? (
+                  <>
+                    <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                    Analyzing &amp; generating strategy...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles aria-hidden="true" className="h-4 w-4" />
+                    Generate campaign strategy
+                  </>
+                )}
+              </Button>
               {genError && (
-                <div className="mt-4 flex items-start gap-2 p-3 bg-amber-50 rounded-lg text-left">
-                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700">{genError}</p>
-                </div>
+                <p
+                  role="status"
+                  className="mt-4 flex items-start gap-2 rounded-lg bg-warning/10 p-3 text-left text-xs text-warning"
+                >
+                  <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  {genError}
+                </p>
               )}
             </div>
           )}
 
           {strategy && (
             <>
-              {/* Strategy section */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Lightbulb className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold text-slate-900">Campaign Strategy</h3>
-                </div>
+              <div className="surface-card p-6">
+                <h3 className="mb-4 flex items-center gap-2 font-semibold tracking-tight">
+                  <Lightbulb aria-hidden="true" className="h-5 w-5 text-primary" />
+                  Campaign Strategy
+                </h3>
                 <div className="space-y-3 text-sm">
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Objective</p>
-                    <p className="text-slate-900">{strategy.strategy?.objective}</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Objective</p>
+                    <p>{strategy.strategy?.objective}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Positioning</p>
-                    <p className="text-slate-700">{strategy.strategy?.positioning}</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Positioning</p>
+                    <p>{strategy.strategy?.positioning}</p>
                   </div>
-                  <div className="flex flex-wrap gap-4">
+                  <div className="flex flex-wrap gap-6">
                     <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase mb-1">Campaign type</p>
-                      <p className="text-slate-900">{strategy.strategy?.campaign_type}</p>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Campaign type</p>
+                      <p>{strategy.strategy?.campaign_type}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase mb-1">Duration</p>
-                      <p className="text-slate-900">{strategy.strategy?.estimated_duration}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Creator requirements */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Users className="w-5 h-5 text-violet-600" />
-                  <h3 className="font-semibold text-slate-900">Creator Requirements</h3>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex flex-wrap gap-2">
-                    {strategy.creator_requirements?.recommended_niches?.map((n) => (
-                      <span key={n} className="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-medium">{n}</span>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Audience characteristics</p>
-                    <p className="text-slate-700">{strategy.creator_requirements?.audience_characteristics}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase mb-1">Creator size</p>
-                      <p className="text-slate-900">{strategy.creator_requirements?.creator_size}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase mb-1">Recommended count</p>
-                      <p className="text-slate-900">{strategy.creator_requirements?.estimated_creators} creators</p>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Duration</p>
+                      <p>{strategy.strategy?.estimated_duration}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Campaign brief */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-semibold text-slate-900">Campaign Brief</h3>
-                </div>
+              <div className="surface-card p-6">
+                <h3 className="mb-4 flex items-center gap-2 font-semibold tracking-tight">
+                  <Users aria-hidden="true" className="h-5 w-5 text-iris" />
+                  Creator Requirements
+                </h3>
                 <div className="space-y-3 text-sm">
-                  <p className="text-slate-700 leading-relaxed">{strategy.campaign?.brief}</p>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-2">Key messages</p>
-                    <ul className="space-y-1.5">
-                      {strategy.campaign?.key_messages?.map((msg, i) => (
-                        <li key={i} className="flex items-start gap-2 text-slate-700">
-                          <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /> {msg}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Creator guidelines</p>
-                    <p className="text-slate-700">{strategy.campaign?.creator_guidelines}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Call to action</p>
-                    <p className="text-slate-900 font-medium">{strategy.campaign?.cta}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Measurement */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 className="w-5 h-5 text-amber-600" />
-                  <h3 className="font-semibold text-slate-900">Measurement Plan</h3>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Tracking strategy</p>
-                    <p className="text-slate-700">{strategy.measurement?.tracking_strategy}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-2">Recommended KPIs</p>
+                  {strategy.creator_requirements?.recommended_niches?.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {strategy.measurement?.recommended_kpis?.map((kpi) => (
-                        <span key={kpi} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">{kpi}</span>
+                      {strategy.creator_requirements.recommended_niches.map((n) => (
+                        <span key={n} className="rounded-full bg-iris/10 px-2.5 py-1 text-xs font-semibold text-iris">
+                          {n}
+                        </span>
                       ))}
                     </div>
+                  )}
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Audience characteristics
+                    </p>
+                    <p>{strategy.creator_requirements?.audience_characteristics}</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Creator size</p>
+                      <p>{strategy.creator_requirements?.creator_size}</p>
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Recommended count</p>
+                      <p>{strategy.creator_requirements?.estimated_creators} creators</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="surface-card p-6">
+                <h3 className="mb-4 flex items-center gap-2 font-semibold tracking-tight">
+                  <FileText aria-hidden="true" className="h-5 w-5 text-success" />
+                  Campaign Brief
+                </h3>
+                <div className="space-y-3 text-sm">
+                  <p className="leading-relaxed">{strategy.campaign?.brief}</p>
+                  {strategy.campaign?.key_messages?.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Key messages</p>
+                      <ul className="space-y-1.5">
+                        {strategy.campaign.key_messages.map((msg, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <Check aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                            {msg}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Creator guidelines</p>
+                    <p>{strategy.campaign?.creator_guidelines}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Attribution approach</p>
-                    <p className="text-slate-700">{strategy.measurement?.attribution_approach}</p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Call to action</p>
+                    <p className="font-semibold">{strategy.campaign?.cta}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="surface-card p-6">
+                <h3 className="mb-4 flex items-center gap-2 font-semibold tracking-tight">
+                  <BarChart3 aria-hidden="true" className="h-5 w-5 text-warning" />
+                  Measurement Plan
+                </h3>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Tracking strategy</p>
+                    <p>{strategy.measurement?.tracking_strategy}</p>
+                  </div>
+                  {strategy.measurement?.recommended_kpis?.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Recommended KPIs</p>
+                      <div className="flex flex-wrap gap-2">
+                        {strategy.measurement.recommended_kpis.map((kpi) => (
+                          <span key={kpi} className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">
+                            {kpi}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Attribution approach</p>
+                    <p>{strategy.measurement?.attribution_approach}</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                  <ArrowLeft className="w-4 h-4" /> Back
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                >
-                  Find matching creators <ArrowRight className="w-4 h-4" />
-                </button>
+                <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(1)}>
+                  <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                  Back
+                </Button>
+                <Button size="lg" className="flex-1" onClick={() => setStep(3)}>
+                  Find matching creators
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </Button>
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* Step 3: Creator Matching */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-slate-900">Intelligent Creator Matching</h3>
-              <span className="text-sm text-slate-500">{selectedCreators.length} selected</span>
+          <div className="surface-card p-5">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold tracking-tight">Intelligent Creator Matching</h3>
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                {selectedCreators.length} selected
+              </span>
             </div>
-            <p className="text-sm text-slate-500">Creators are ranked by match score based on audience fit, niche, engagement, and historical performance.</p>
+            <p className="text-sm text-muted-foreground">
+              Creators are ranked by match score based on audience fit, niche, engagement, and historical
+              performance.
+            </p>
           </div>
 
-          {allCreators.length === 0 ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          {creatorsError ? (
+            <div className="surface-card p-6" role="alert">
+              <p className="text-sm font-semibold text-danger">{creatorsError}</p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setCreatorsError(null);
+                    setAllCreators([]);
+                  }}
+                >
+                  Retry
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setStep(4)}>
+                  Skip to simulator
+                </Button>
+              </div>
+            </div>
+          ) : creatorsLoading ? (
+            <div className="space-y-2" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading matching creators</span>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-[68px] rounded-xl" />
+              ))}
+            </div>
+          ) : rankedCreators.length === 0 ? (
+            <div className="surface-card p-8 text-center">
+              <UsersRound aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+              <p className="font-semibold tracking-tight">No creators to match yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                The creator directory is empty, so there is nothing to rank. You can still finish your
+                campaign and invite creators later.
+              </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            <ul className="max-h-[500px] space-y-2 overflow-y-auto">
               {rankedCreators.map(({ creator, match }) => {
                 const selected = selectedCreators.find((c) => c.id === creator.id);
                 return (
-                  <div
-                    key={creator.id}
-                    onClick={() => toggleCreator(creator)}
-                    className={`bg-white rounded-xl border-2 p-4 cursor-pointer transition-all flex items-center gap-3 ${selected ? "border-blue-500 bg-blue-50/30" : "border-transparent border-slate-200 hover:border-slate-300"}`}
-                  >
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${selected ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
-                      {selected && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <img
-                      src={creator.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${creator.name}&backgroundColor=2563eb`}
-                      alt={creator.name}
-                      className="w-10 h-10 rounded-full bg-slate-100 flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-900 truncate">{creator.name}</p>
-                      <p className="text-xs text-slate-500 truncate">{creator.niche} · {formatNumber(creator.linkedin_followers)} followers</p>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <span className="text-xs text-slate-500">{formatCurrency(creator.price_per_post)}</span>
-                      <span className={`text-sm font-bold ${match.score >= 85 ? "text-emerald-600" : match.score >= 70 ? "text-blue-600" : "text-slate-600"}`}>
-                        {match.score}%
+                  <li key={creator.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleCreator(creator)}
+                      aria-pressed={Boolean(selected)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-all duration-200 ease-smooth",
+                        selected
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border hover:border-primary/25 hover:bg-muted/50"
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2",
+                          selected ? "border-primary/40 bg-primary text-primary-foreground" : "border-border"
+                        )}
+                      >
+                        {selected && <Check className="h-3 w-3" />}
                       </span>
-                    </div>
-                  </div>
+                      <img
+                        src={
+                          creator.avatar_url ||
+                          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                            creator.name || "creator"
+                          )}&backgroundColor=2563eb`
+                        }
+                        alt=""
+                        className="h-10 w-10 flex-shrink-0 rounded-full border border-border/60 bg-muted object-cover"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{creator.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {creator.niche} · {formatNumber(creator.linkedin_followers)} followers
+                        </span>
+                      </span>
+                      <span className="flex flex-shrink-0 items-center gap-3">
+                        <span className="text-xs text-muted-foreground">{formatCurrency(creator.price_per_post)}</span>
+                        <span
+                          className={cn(
+                            "text-sm font-bold tabular-nums",
+                            match.score >= 85
+                              ? "text-success"
+                              : match.score >= 70
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {match.score}%
+                        </span>
+                      </span>
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(2)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 flex items-center justify-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <button
-              onClick={() => setStep(4)}
-              className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-            >
-              {selectedCreators.length > 0 ? `Simulate with ${selectedCreators.length} creators` : "Skip to review"} <ArrowRight className="w-4 h-4" />
-            </button>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(2)}>
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              Back
+            </Button>
+            <Button size="lg" className="flex-1" onClick={() => setStep(4)}>
+              {selectedCreators.length > 0
+                ? `Simulate with ${selectedCreators.length} creators`
+                : "Skip to simulator"}
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Step 4: Simulator */}
       {step === 4 && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
-              <h3 className="font-semibold text-slate-900">Campaign Simulator</h3>
-            </div>
-            <p className="text-sm text-slate-500">Estimated outcomes based on selected creators' historical performance data.</p>
+          <div className="surface-card p-5">
+            <h3 className="mb-1 flex items-center gap-2 font-semibold tracking-tight">
+              <BarChart3 aria-hidden="true" className="h-5 w-5 text-primary" />
+              Campaign Simulator
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Estimated outcomes based on selected creators' historical performance data.
+            </p>
           </div>
 
           {selectedCreators.length > 0 ? (
             <CampaignSimulator creators={selectedCreators} budget={form.budget} />
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
-              <p className="text-sm text-slate-500">No creators selected. Go back to select creators for simulation.</p>
+            <div className="surface-card p-8 text-center">
+              <p className="text-sm font-semibold">No creators selected</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Go back to step 3 to select creators for a simulation.
+              </p>
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => setStep(3)}>
+                <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                Back to creator matching
+              </Button>
             </div>
           )}
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(3)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 flex items-center justify-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <button onClick={() => setStep(5)} className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 flex items-center justify-center gap-2">
-              Review & create <ArrowRight className="w-4 h-4" />
-            </button>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(3)}>
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              Back
+            </Button>
+            <Button size="lg" className="flex-1" onClick={() => setStep(5)}>
+              Review &amp; create
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Step 5: Review */}
       {step === 5 && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h2 className="font-semibold text-slate-900 mb-4">Campaign summary</h2>
+          <div className="surface-card p-6">
+            <h2 className="mb-4 font-semibold tracking-tight">Campaign summary</h2>
             <dl className="space-y-3 text-sm">
-              <div className="flex justify-between"><dt className="text-slate-500">Campaign name</dt><dd className="font-medium text-slate-900 text-right">{strategy?.campaign?.campaign_name || form.name}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Product</dt><dd className="font-medium text-slate-900 text-right">{form.product}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Budget</dt><dd className="font-medium text-slate-900">{formatCurrency(form.budget)}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Objective</dt><dd className="font-medium text-slate-900 text-right max-w-xs">{strategy?.strategy?.objective || form.objective}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Target audience</dt><dd className="font-medium text-slate-900 text-right max-w-xs">{strategy?.strategy?.target_audience || form.target_audience}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Creators selected</dt><dd className="font-medium text-slate-900">{selectedCreators.length}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Total creator cost</dt><dd className="font-medium text-slate-900">{formatCurrency(selectedCreators.reduce((s, c) => s + c.price_per_post, 0))}</dd></div>
+              {[
+                { label: "Campaign name", value: strategy?.campaign?.campaign_name || form.name },
+                { label: "Product", value: form.product },
+                { label: "Budget", value: formatCurrency(form.budget) },
+                { label: "Objective", value: strategy?.strategy?.objective || form.objective },
+                { label: "Target audience", value: strategy?.strategy?.target_audience || form.target_audience },
+                { label: "Creators selected", value: String(selectedCreators.length) },
+                {
+                  label: "Total creator cost",
+                  value: formatCurrency(selectedCreators.reduce((s, c) => s + c.price_per_post, 0)),
+                },
+              ].map((row) => (
+                <div key={row.label} className="flex flex-wrap justify-between gap-2">
+                  <dt className="text-muted-foreground">{row.label}</dt>
+                  <dd className="max-w-xs text-right font-semibold">{row.value || "—"}</dd>
+                </div>
+              ))}
             </dl>
           </div>
 
           {selectedCreators.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-900 mb-3">Selected creators</h3>
-              <div className="space-y-2">
+            <div className="surface-card p-5">
+              <h3 className="mb-3 text-sm font-semibold tracking-tight">Selected creators</h3>
+              <ul className="space-y-2">
                 {selectedCreators.map((c) => (
-                  <div key={c.id} className="flex items-center gap-3">
-                    <img src={c.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${c.name}&backgroundColor=2563eb`} alt="" className="w-8 h-8 rounded-full bg-slate-100" />
-                    <span className="text-sm font-medium text-slate-900 flex-1">{c.name}</span>
-                    <span className="text-xs text-slate-500">{c.niche}</span>
-                    <span className="text-sm font-medium text-slate-900">{formatCurrency(c.price_per_post)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {strategy?.campaign?.key_messages && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-900 mb-3">Key messages</h3>
-              <ul className="space-y-1.5">
-                {strategy.campaign.key_messages.map((m, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                    <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /> {m}
+                  <li key={c.id} className="flex items-center gap-3">
+                    <img
+                      src={
+                        c.avatar_url ||
+                        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                          c.name || "creator"
+                        )}&backgroundColor=2563eb`
+                      }
+                      alt=""
+                      className="h-8 w-8 flex-shrink-0 rounded-full border border-border/60 bg-muted object-cover"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.name}</span>
+                    <span className="hidden text-xs text-muted-foreground sm:block">{c.niche}</span>
+                    <span className="text-sm font-semibold tabular-nums">{formatCurrency(c.price_per_post)}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          <button
-            onClick={() => setShowSaveTemplate(true)}
-            className="w-full py-2.5 rounded-xl border border-blue-200 text-blue-600 font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 text-sm"
-          >
-            <Save className="w-4 h-4" /> Save as template
-          </button>
+          {strategy?.campaign?.key_messages?.length > 0 && (
+            <div className="surface-card p-5">
+              <h3 className="mb-3 text-sm font-semibold tracking-tight">Key messages</h3>
+              <ul className="space-y-1.5">
+                {strategy.campaign.key_messages.map((m, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <Check aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                    {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <Button variant="outline" className="w-full" onClick={() => setShowSaveTemplate(true)}>
+            <Save aria-hidden="true" className="h-4 w-4 text-primary" />
+            Save as template
+          </Button>
 
           <div className="flex gap-3">
-            <button onClick={() => setStep(4)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 flex items-center justify-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating campaign...</> : <><Rocket className="w-4 h-4" /> Launch campaign</>}
-            </button>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setStep(4)}>
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              Back
+            </Button>
+            <Button size="lg" className="flex-1" onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                  Creating campaign...
+                </>
+              ) : (
+                <>
+                  <Rocket aria-hidden="true" className="h-4 w-4" />
+                  Launch campaign
+                </>
+              )}
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Template modals */}
       {showTemplateSelector && (
         <TemplateSelector onApply={applyTemplate} onClose={() => setShowTemplateSelector(false)} />
       )}
       {showSaveTemplate && (
-        <SaveTemplateModal campaignData={{ ...form, ...strategy?.campaign, lead_target: templateData?.lead_target }} onClose={() => setShowSaveTemplate(false)} />
+        <SaveTemplateModal
+          campaignData={{ ...form, ...strategy?.campaign, lead_target: templateData?.lead_target }}
+          onClose={() => setShowSaveTemplate(false)}
+        />
       )}
     </div>
   );

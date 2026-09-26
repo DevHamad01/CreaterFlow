@@ -1,0 +1,10 @@
+# Cloudflare Pages SPA fallback.
+#
+# This file is served from dist/ (Vite copies public/ verbatim into the output
+# dir) and Cloudflare Pages reads _redirects from the output directory.
+#
+# Why this is required: React Router owns client-side routing, but Cloudflare's
+# edge only serves files that physically exist in the output dir. Without this
+# rule there is no /pricing or /marketplace file, so a hard refresh, a shared
+# link, or a back/forward navigation on any non-root route returns 404.
+/*    /index.html   200

@@ -1,89 +1,139 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { computeCreatorPerformanceScore, getPerformanceGrade } from "@/lib/intelligence";
+import { Button } from "@/components/ui/button";
 import { TrendingUp } from "lucide-react";
+
+// Static classes only — a dynamic `text-${color}-600` would be dropped by the
+// Tailwind JIT scanner and would also bypass the approved palette.
+const GRADE_TEXT = {
+  emerald: "text-success",
+  blue: "text-primary",
+  sky: "text-info",
+  amber: "text-warning",
+  slate: "text-muted-foreground",
+};
 
 /**
  * Creator Performance Score Card.
  * Shows a composite 0-100 score with grade and breakdown.
- * 
+ *
  * Props: creator, variant ("card" | "inline")
  */
 export default function PerformanceScoreCard({ creator, variant = "card" }) {
   const [expanded, setExpanded] = useState(false);
+  const breakdownId = useId();
   const { score, grade, breakdown } = computeCreatorPerformanceScore(creator);
   const gradeInfo = getPerformanceGrade(score);
 
   const ringColor =
-    score >= 75 ? "text-emerald-500"
-    : score >= 60 ? "text-blue-500"
-    : score >= 40 ? "text-amber-500"
-    : "text-slate-400";
+    score >= 75 ? "text-success"
+    : score >= 60 ? "text-primary"
+    : score >= 40 ? "text-warning"
+    : "text-muted-foreground";
 
   if (variant === "inline") {
     return (
-      <div className="inline-flex items-center gap-2">
-        <span className={`text-2xl font-bold ${ringColor}`}>{score}</span>
-        <div>
-          <p className="text-xs font-medium text-slate-500">Performance score</p>
-          <p className="text-xs text-slate-400">/ 100 · {grade}</p>
-        </div>
-      </div>
+      <p className="inline-flex items-center gap-2">
+        <span className={`font-display text-2xl font-semibold tabular-nums ${ringColor}`}>{score}</span>
+        <span>
+          <span className="block text-xs font-medium text-muted-foreground">Performance score</span>
+          <span className="block text-xs text-muted-foreground">/ 100 · {grade}</span>
+        </span>
+      </p>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="w-4 h-4 text-blue-500" />
-        <h3 className="font-semibold text-slate-900 text-sm">Creator Performance</h3>
+    <section className="surface-card p-5" aria-labelledby={`${breakdownId}-title`}>
+      <div className="mb-4 flex items-center gap-2">
+        <TrendingUp aria-hidden="true" className="h-4 w-4 text-primary" />
+        <h3 id={`${breakdownId}-title`} className="text-sm font-semibold tracking-tight">
+          Creator Performance
+        </h3>
       </div>
 
-      <div className="flex items-center gap-4 mb-4">
-        <div className="relative w-20 h-20 flex items-center justify-center">
-          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-100" />
+      <div className="mb-4 flex items-center gap-4">
+        <div className="relative flex h-20 w-20 items-center justify-center">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 36 36"
+            className="absolute inset-0 h-full w-full -rotate-90"
+          >
             <circle
-              cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3"
+              cx="18" cy="18" r="15" fill="none"
+              stroke="currentColor" strokeWidth="3" className="text-muted-foreground"
+            />
+            <circle
+              cx="18" cy="18" r="15" fill="none"
+              stroke="currentColor" strokeWidth="3"
               className={ringColor}
               strokeDasharray={`${(score / 100) * 94.2} 94.2`}
               strokeLinecap="round"
             />
           </svg>
-          <span className={`text-xl font-bold ${ringColor}`}>{score}</span>
+          <span
+            role="meter"
+            aria-valuenow={score}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Performance score"
+            className={`font-display text-xl font-semibold tabular-nums ${ringColor}`}
+          >
+            {score}
+          </span>
         </div>
         <div>
-          <p className={`text-sm font-semibold text-${gradeInfo.color}-600`}>{grade}</p>
-          <p className="text-xs text-slate-500">Performance score</p>
+          <p className={`text-sm font-semibold ${GRADE_TEXT[gradeInfo.color] || GRADE_TEXT.slate}`}>
+            {grade}
+          </p>
+          <p className="text-xs text-muted-foreground">Performance score</p>
         </div>
       </div>
 
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+      <Button
+        variant="link"
+        size="sm"
+        className="h-auto p-0 text-xs"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-controls={breakdownId}
       >
         {expanded ? "Hide breakdown" : "Show breakdown"}
-      </button>
+      </Button>
 
       {expanded && (
-        <div className="mt-3 space-y-2.5 pt-3 border-t border-slate-100">
+        <ul id={breakdownId} className="mt-3 space-y-2.5 border-t border-border/70 pt-3">
           {breakdown.map((c) => (
-            <div key={c.label}>
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-slate-600">{c.label}</span>
-                <span className={`font-medium ${c.score >= 75 ? "text-emerald-600" : c.score >= 50 ? "text-amber-600" : "text-slate-500"}`}>
+            <li key={c.label}>
+              <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">{c.label}</span>
+                <span
+                  className={`font-medium tabular-nums ${
+                    c.score >= 75 ? "text-success" : c.score >= 50 ? "text-warning" : "text-muted-foreground"
+                  }`}
+                >
                   {c.score}/100
                 </span>
               </div>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                role="progressbar"
+                aria-label={`${c.label} score`}
+                aria-valuenow={c.score}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="h-1.5 overflow-hidden rounded-full bg-muted"
+              >
                 <div
-                  className={`h-full rounded-full ${c.score >= 75 ? "bg-emerald-500" : c.score >= 50 ? "bg-amber-400" : "bg-slate-300"}`}
+                  className={`h-full rounded-full ${
+                    c.score >= 75 ? "bg-success/60" : c.score >= 50 ? "bg-warning/60" : "bg-border"
+                  }`}
                   style={{ width: `${c.score}%` }}
                 />
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </section>
   );
 }

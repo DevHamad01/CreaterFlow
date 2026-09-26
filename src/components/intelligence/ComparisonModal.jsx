@@ -1,20 +1,33 @@
-import { useState, useMemo } from "react";
-import { firestoreService } from "@/lib/firestore-service";
-import { useAuth } from "@/lib/AuthContext";
+import { useMemo } from "react";
 import { computeCreatorMatch, formatNumber, formatCurrency } from "@/lib/intelligence";
-import { X, Check, Users, TrendingUp, MousePointerClick, Target, Wallet, GitCompare, ArrowRight } from "lucide-react";
+import { GitCompare, ArrowRight, Trophy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const NICHES = ["AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech", "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity"];
+/**
+ * @typedef {object} ComparisonModalProps
+ * @property {any[]} creators
+ * @property {any} [campaign]
+ * @property {() => void} onClose
+ */
+
+/**
+ * @typedef {object} ComparisonRow
+ * @property {string} label
+ * @property {(creator: any, match: any) => any} render
+ * @property {boolean} [highlight]
+ */
 
 /**
  * Creator Comparison Modal — Differentiator #3
- * 
+ *
  * Allows selecting multiple creators and comparing them side-by-side.
- * Compare: audience, followers, engagement, industry, match score, price, 
+ * Compare: audience, followers, engagement, industry, match score, price,
  * historical performance, estimated campaign outcome, availability.
- * 
- * Props: creators (array of creator objects), campaign (optional, for match scoring)
+ *
+ * @param {ComparisonModalProps} props
  */
 export default function ComparisonModal({ creators, campaign, onClose }) {
   const navigate = useNavigate();
@@ -36,168 +49,281 @@ export default function ComparisonModal({ creators, campaign, onClose }) {
     !min || c.price_per_post < min.price_per_post ? c : min, null);
 
   const bestFollowers = creators.reduce((max, c) =>
-    !max || c.linkedin_followers > max.linkedin_followers ? c : null);
+    !max || c.linkedin_followers > max.linkedin_followers ? c : max, null);
 
   const bestEngagement = creators.reduce((max, c) =>
-    !max || c.engagement_rate > max.engagement_rate ? c : null);
+    !max || c.engagement_rate > max.engagement_rate ? c : max, null);
 
+  /** @type {(props: ComparisonRow) => any} */
   const Row = ({ label, render, highlight }) => (
-    <div className={`flex border-b border-slate-100 ${highlight ? "bg-blue-50/30" : ""}`}>
-      <div className="w-32 flex-shrink-0 px-4 py-3 text-xs font-medium text-slate-500 border-r border-slate-100">
+    <tr className={cn("border-b border-border/70 last:border-b-0", highlight && "bg-primary/5")}>
+      <th
+        scope="row"
+        className="sticky left-0 z-10 w-32 min-w-32 border-r border-border/70 bg-card px-4 py-3 text-left align-top text-xs font-semibold text-muted-foreground"
+      >
         {label}
-      </div>
+      </th>
       {comparisons.map(({ creator, match }) => (
-        <div key={creator.id} className="flex-1 px-4 py-3 text-sm text-slate-900 min-w-0">
+        <td key={creator.id} className="min-w-40 px-4 py-3 align-top text-sm">
           {render(creator, match)}
-        </div>
+        </td>
       ))}
-    </div>
+    </tr>
+  );
+
+  /** @type {(props: { text: any; best: boolean; label: string }) => any} */
+  const Leader = ({ text, best, label }) => (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="font-semibold tabular-nums">{text}</span>
+      {best && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success">
+          <Trophy aria-hidden="true" className="h-3 w-3" />
+          {label}
+        </span>
+      )}
+    </span>
   );
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <div className="flex items-center gap-2">
-            <GitCompare className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-slate-900">Compare creators</h2>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="flex max-h-[90vh] flex-col p-0 sm:max-w-5xl"
+        showClose={false}
+      >
+        <DialogHeader className="border-b border-border/80 px-6 py-5 pr-14">
+          <DialogTitle className="inline-flex items-center gap-2">
+            <GitCompare aria-hidden="true" className="h-5 w-5 text-primary" />
+            Compare creators
+          </DialogTitle>
+          <DialogDescription>
+            {creators.length} creators side by side
+            {campaign ? `, scored against ${campaign.name}` : ""}.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-auto">
-          {/* Header row with avatars */}
-          <div className="flex border-b border-slate-200 sticky top-0 bg-white z-10">
-            <div className="w-32 flex-shrink-0 px-4 py-4 border-r border-slate-100">
-              <span className="text-xs font-medium text-slate-400 uppercase">Creator</span>
-            </div>
-            {comparisons.map(({ creator }) => (
-              <div key={creator.id} className="flex-1 px-4 py-3 min-w-0">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={creator.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${creator.name}&backgroundColor=2563eb`}
-                    alt={creator.name}
-                    className="w-10 h-10 rounded-full bg-slate-100 flex-shrink-0"
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full border-collapse">
+            <caption className="sr-only">
+              Side-by-side comparison of {creators.length} creators
+            </caption>
+            <thead>
+              <tr className="sticky top-0 z-20 bg-card">
+                <th
+                  scope="col"
+                  className="sticky left-0 z-30 w-32 min-w-32 border-b border-r border-border/70 bg-card px-4 py-4 text-left align-bottom text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  Metric
+                </th>
+                {comparisons.map(({ creator, match }) => (
+                  <th
+                    key={creator.id}
+                    scope="col"
+                    className="min-w-40 border-b border-border/70 bg-card px-4 py-3 text-left align-top font-normal"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <img
+                        src={
+                          creator.avatar_url ||
+                          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                            creator.name || "creator"
+                          )}&backgroundColor=2563eb`
+                        }
+                        alt=""
+                        className="h-10 w-10 flex-shrink-0 rounded-full border border-border/60 bg-muted object-cover"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">{creator.name}</span>
+                        <span className="block truncate text-xs font-normal text-muted-foreground">
+                          {creator.niche}
+                        </span>
+                        {match && (
+                          <span
+                            className={cn(
+                              "mt-1 inline-block text-[11px] font-semibold tabular-nums",
+                              match.score >= 80
+                                ? "text-success"
+                                : match.score >= 65
+                                ? "text-primary"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {match.score}% match
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <Row
+                label="Followers"
+                render={(c) => (
+                  <Leader
+                    text={formatNumber(c.linkedin_followers)}
+                    best={bestFollowers?.id === c.id && comparisons.length > 1}
+                    label="Highest"
                   />
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate text-sm">{creator.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{creator.niche}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Comparison rows */}
-          <Row label="Followers" highlight={false}
-            render={(c) => (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{formatNumber(c.linkedin_followers)}</span>
-                {bestFollowers?.id === c.id && <span className="text-xs text-emerald-600 font-medium">★ Highest</span>}
-              </div>
-            )}
-          />
-          <Row label="Engagement"
-            render={(c) => (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{c.engagement_rate}%</span>
-                {bestEngagement?.id === c.id && <span className="text-xs text-emerald-600 font-medium">★ Best</span>}
-              </div>
-            )}
-          />
-          <Row label="Price per post"
-            render={(c) => (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{formatCurrency(c.price_per_post)}</span>
-                {bestPrice?.id === c.id && <span className="text-xs text-emerald-600 font-medium">★ Best value</span>}
-              </div>
-            )}
-          />
-          <Row label="Match score"
-            render={(c, match) => match ? (
-              <div className="flex items-center gap-2">
-                <span className={`font-bold ${match.score >= 80 ? "text-emerald-600" : match.score >= 65 ? "text-blue-600" : "text-slate-600"}`}>
-                  {match.score}%
-                </span>
-                {bestMatch?.creator.id === c.id && <span className="text-xs text-emerald-600 font-medium">★ Best match</span>}
-              </div>
-            ) : <span className="text-slate-400">—</span>}
-          />
-          <Row label="Audience type"
-            render={(c) => <span className="text-xs text-slate-600">{c.audience_type || "—"}</span>}
-          />
-          <Row label="Audience industries"
-            render={(c) => (
-              <div className="flex flex-wrap gap-1">
-                {(c.audience_industries || []).slice(0, 3).map((ind) => (
-                  <span key={ind} className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{ind}</span>
-                ))}
-              </div>
-            )}
-          />
-          <Row label="Geography"
-            render={(c) => (
-              <div className="flex flex-wrap gap-1">
-                {(c.audience_geography || []).slice(0, 3).map((geo) => (
-                  <span key={geo} className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{geo}</span>
-                ))}
-              </div>
-            )}
-          />
-          <Row label="Avg impressions"
-            render={(c) => <span className="text-slate-600">{formatNumber(c.avg_impressions || 0)}</span>}
-          />
-          <Row label="Avg clicks"
-            render={(c) => <span className="text-slate-600">{formatNumber(c.avg_clicks || 0)}</span>}
-          />
-          <Row label="Avg leads"
-            render={(c) => <span className="text-slate-600">{formatNumber(c.avg_leads || 0)}</span>}
-          />
-          <Row label="Total campaigns"
-            render={(c) => <span className="text-slate-600">{c.total_campaigns || 0}</span>}
-          />
-          <Row label="Rating"
-            render={(c) => (
-              <span className="text-slate-600">{c.rating || "—"} ({c.reviews_count || 0} reviews)</span>
-            )}
-          />
-          <Row label="Availability"
-            render={(c) => (
-              <span className={`text-xs font-medium capitalize ${
-                c.availability === "available" ? "text-emerald-600" :
-                c.availability === "limited" ? "text-amber-600" : "text-slate-500"
-              }`}>
-                {c.availability || "—"}
-              </span>
-            )}
-          />
-          <Row label="Location"
-            render={(c) => <span className="text-xs text-slate-600">{c.city}, {c.country}</span>}
-          />
+                )}
+              />
+              <Row
+                label="Engagement"
+                render={(c) => (
+                  <Leader
+                    text={`${c.engagement_rate}%`}
+                    best={bestEngagement?.id === c.id && comparisons.length > 1}
+                    label="Best"
+                  />
+                )}
+              />
+              <Row
+                label="Price per post"
+                render={(c) => (
+                  <Leader
+                    text={formatCurrency(c.price_per_post)}
+                    best={bestPrice?.id === c.id && comparisons.length > 1}
+                    label="Best value"
+                  />
+                )}
+              />
+              <Row
+                label="Match score"
+                render={(c, match) =>
+                  match ? (
+                    <Leader
+                      text={`${match.score}%`}
+                      best={bestMatch?.creator.id === c.id && comparisons.length > 1}
+                      label="Best match"
+                    />
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )
+                }
+              />
+              <Row
+                label="Audience type"
+                render={(c) => <span className="text-muted-foreground">{c.audience_type || "—"}</span>}
+              />
+              <Row
+                label="Audience industries"
+                render={(c) => (
+                  <span className="flex flex-wrap gap-1">
+                    {(c.audience_industries || []).slice(0, 3).map((ind) => (
+                      <span
+                        key={ind}
+                        className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                      >
+                        {ind}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              />
+              <Row
+                label="Geography"
+                render={(c) => (
+                  <span className="flex flex-wrap gap-1">
+                    {(c.audience_geography || []).slice(0, 3).map((geo) => (
+                      <span
+                        key={geo}
+                        className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                      >
+                        {geo}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              />
+              <Row
+                label="Avg impressions"
+                render={(c) => (
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatNumber(c.avg_impressions || 0)}
+                  </span>
+                )}
+              />
+              <Row
+                label="Avg clicks"
+                render={(c) => (
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatNumber(c.avg_clicks || 0)}
+                  </span>
+                )}
+              />
+              <Row
+                label="Avg leads"
+                render={(c) => (
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatNumber(c.avg_leads || 0)}
+                  </span>
+                )}
+              />
+              <Row
+                label="Total campaigns"
+                render={(c) => <span className="tabular-nums text-muted-foreground">{c.total_campaigns || 0}</span>}
+              />
+              <Row
+                label="Rating"
+                render={(c) => (
+                  <span className="text-muted-foreground">
+                    {c.rating || "—"} ({c.reviews_count || 0} reviews)
+                  </span>
+                )}
+              />
+              <Row
+                label="Availability"
+                render={(c) => (
+                  <span
+                    className={cn(
+                      "text-xs font-semibold capitalize",
+                      c.availability === "available"
+                        ? "text-success"
+                        : c.availability === "limited"
+                        ? "text-warning"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {c.availability || "—"}
+                  </span>
+                )}
+              />
+              <Row
+                label="Location"
+                render={(c) => (
+                  <span className="text-xs text-muted-foreground">
+                    {[c.city, c.country].filter(Boolean).join(", ") || "—"}
+                  </span>
+                )}
+              />
+            </tbody>
+          </table>
         </div>
 
-        {/* Footer with actions */}
-        <div className="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50">
-          <p className="text-xs text-slate-500">
-            {creators.length} creators compared · {bestMatch ? `Best match: ${bestMatch.creator.name}` : ""}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/80 bg-muted/50 px-6 py-4">
+          <p className="text-xs text-muted-foreground">
+            {bestMatch
+              ? `Best match for this campaign: ${bestMatch.creator.name}`
+              : "Select a campaign to score these creators."}
           </p>
           <div className="flex gap-2">
             {campaign && bestMatch && (
-              <button
-                onClick={() => navigate(`/creators/${bestMatch.creator.id}`)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+              <Button
+                onClick={() => {
+                  onClose();
+                  navigate(`/creators/${bestMatch.creator.id}`);
+                }}
               >
-                View best match <ArrowRight className="w-4 h-4" />
-              </button>
+                View best match
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Button>
             )}
-            <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-white">
+            <Button variant="outline" onClick={onClose}>
               Close
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,81 +1,194 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { firestoreService } from "@/lib/firestore-service";
 import { useAuth } from "@/lib/AuthContext";
+import PageHeader from "@/components/PageHeader";
+import FilterTabs from "@/components/FilterTabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import EmptyState from "@/components/EmptyState";
-import { Plus, FolderKanban, Search } from "lucide-react";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, AlertTriangle, RefreshCw, SearchX, CalendarDays, Wallet } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+
+const STATUSES = ["draft", "recruiting", "active", "review", "live", "completed"];
+
+const pretty = (s) => (s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1));
 
 export default function Campaigns() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
 
-  useEffect(() => {
-    if (!user) return;
+  const loadCampaigns = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     base44.entities.Campaign.filter({ created_by_id: user.id }, "-created_date")
-      .then(setCampaigns)
+      .then((rows) => setCampaigns(rows || []))
+      .catch((err) => {
+        console.error("Campaigns: load failed", err);
+        setError("We couldn't load your campaigns. Check your connection and try again.");
+      })
       .finally(() => setLoading(false));
   }, [user]);
 
-  const filtered = filter === "all" ? campaigns : campaigns.filter((c) => c.status === filter);
+  useEffect(() => {
+    loadCampaigns();
+  }, [loadCampaigns]);
 
-  const statusFilters = ["all", "draft", "recruiting", "active", "review", "live", "completed"];
+  const tabs = useMemo(
+    () => [
+      { value: "all", label: "All", count: campaigns.length },
+      ...STATUSES.map((s) => ({
+        value: s,
+        label: pretty(s),
+        count: campaigns.filter((c) => c.status === s).length,
+      })),
+    ],
+    [campaigns]
+  );
 
-  if (loading) return <div className="animate-pulse space-y-3"><div className="h-8 bg-slate-200 rounded w-48" />{[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}</div>;
+  const filtered = useMemo(
+    () => (filter === "all" ? campaigns : campaigns.filter((c) => c.status === filter)),
+    [campaigns, filter]
+  );
+
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading campaigns</span>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2.5">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Skeleton className="h-10 w-40 rounded-xl" />
+        </div>
+        <div className="flex gap-1.5">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-8 w-24 rounded-full" />
+          ))}
+        </div>
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="surface-card mx-auto max-w-lg p-8" role="alert">
+        <EmptyState
+          icon={AlertTriangle}
+          title="We couldn't load your campaigns"
+          description={error}
+          action={
+            <Button onClick={loadCampaigns}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Campaigns</h1>
-          <p className="text-sm text-slate-500 mt-1">{campaigns.length} total campaigns</p>
-        </div>
-        <button onClick={() => navigate("/app/campaigns/new")} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors">
-          <Plus className="w-4 h-4" /> New campaign
-        </button>
-      </div>
+      <PageHeader
+        title="Campaigns"
+        description={`${campaigns.length} total ${campaigns.length === 1 ? "campaign" : "campaigns"}`}
+        action={
+          <Button onClick={() => navigate("/app/campaigns/new")}>
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            New campaign
+          </Button>
+        }
+      />
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {statusFilters.map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${filter === s ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-          >
-            {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
-      </div>
+      <FilterTabs tabs={tabs} value={filter} onChange={setFilter} ariaLabel="Filter by status" />
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200">
-          <EmptyState icon={FolderKanban} title="No campaigns found" description={filter === "all" ? "Create your first campaign to get started." : `No ${filter} campaigns yet.`} action={filter === "all" && <button onClick={() => navigate("/app/campaigns/new")} className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium">Create campaign</button>} />
-        </div>
+        campaigns.length === 0 ? (
+          <div className="surface-card">
+            <EmptyState
+              illustration="campaign"
+              title="No campaigns yet"
+              description="Create your first campaign to start collaborating with creators."
+              action={
+                <Button asChild>
+                  <Link to="/app/campaigns/new">
+                    <Plus aria-hidden="true" className="h-4 w-4" />
+                    Create campaign
+                  </Link>
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <div className="surface-card">
+            <EmptyState
+              icon={SearchX}
+              title={`No ${pretty(filter).toLowerCase()} campaigns`}
+              description={`You have ${campaigns.length} ${campaigns.length === 1 ? "campaign" : "campaigns"} in total, but none with the ${pretty(filter).toLowerCase()} status.`}
+              action={
+                <Button variant="outline" onClick={() => setFilter("all")}>
+                  Show all campaigns
+                </Button>
+              }
+            />
+          </div>
+        )
       ) : (
-        <div className="space-y-3">
+        <Stagger as="ul" className="space-y-3" stagger={0.04}>
           {filtered.map((c) => (
-            <Link key={c.id} to={`/app/campaigns/${c.id}`} className="block bg-white rounded-xl border border-slate-200 p-5 hover:border-slate-300 hover:shadow-sm transition-all">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-slate-900">{c.name}</h3>
-                    <StatusBadge status={c.status} />
+            <StaggerItem key={c.id}>
+              <Link
+                to={`/app/campaigns/${c.id}`}
+                className="surface-card card-lift block p-5 focus-visible:outline-none"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate font-semibold tracking-tight">{c.name}</h2>
+                      <StatusBadge status={c.status} />
+                    </div>
+                    <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{c.objective}</p>
                   </div>
-                  <p className="text-sm text-slate-500 line-clamp-1">{c.objective}</p>
-                  <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-500">
-                    <span>Budget: €{c.budget?.toLocaleString() || 0}</span>
-                    {c.start_date && <span>Start: {c.start_date}</span>}
-                    {c.end_date && <span>End: {c.end_date}</span>}
-                  </div>
+                  <span className="font-display text-sm font-semibold">
+                    €{(c.budget || 0).toLocaleString()}
+                  </span>
                 </div>
-              </div>
-            </Link>
+
+                {(c.start_date || c.end_date) && (
+                  <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {c.start_date && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
+                        {c.start_date}
+                        {c.end_date ? ` → ${c.end_date}` : ""}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1.5">
+                      <Wallet aria-hidden="true" className="h-3.5 w-3.5" />
+                      Budget {(c.budget || 0).toLocaleString()}
+                    </span>
+                  </p>
+                )}
+              </Link>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       )}
     </div>
   );
