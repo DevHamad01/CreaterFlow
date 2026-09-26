@@ -1,3 +1,1 @@
-# Cloudflare Pages build image pins Node here, so the deploy uses the same major
-# as local instead of silently drifting. Vite 8 requires Node 20.19+ / 22.12+.
 22
