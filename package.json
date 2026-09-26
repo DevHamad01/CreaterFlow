@@ -3,6 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "//engines": "Vite 8 needs Node 20.19+/22.12+. Declared here rather than in a .node-version file: Cloudflare Pages passes that file's contents straight to /bin/sh, so any comment or extra line in it becomes a shell argument and fails the build with exit 127. To pin an exact version, set NODE_VERSION in the Cloudflare dashboard, not in a file.",
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
