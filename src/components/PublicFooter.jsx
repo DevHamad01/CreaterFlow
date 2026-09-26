@@ -1,6 +1,10 @@
 import { Link } from "react-router-dom";
 import { Logo } from "@/components/PublicNav";
 
+// Attribution for the redesign. Change this one string to your name — it is
+// the only place the credit name appears, so no find-and-replace needed.
+const CREDIT_NAME = "Hamad";
+
 const COLUMNS = [
   {
     heading: "Solutions",
@@ -65,10 +69,10 @@ export default function PublicFooter() {
 
         <div className="mt-12 flex flex-col justify-between gap-3 border-t border-primary-foreground/20 pt-8 sm:flex-row sm:items-center">
           <p className="text-sm text-primary-foreground/85">
-            © 2026 CreatorFlow. All rights reserved.
+            © 2026 8xNanoo. All rights reserved.
           </p>
           <p className="text-sm text-primary-foreground/70">
-            Built as a functional MVP inspired by naano.com
+            Built by {CREDIT_NAME} for 8x — UI redesign of Nanoo
           </p>
         </div>
       </div>

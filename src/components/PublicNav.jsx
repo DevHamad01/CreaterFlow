@@ -21,17 +21,36 @@ export function Logo({ compact = false, onBrand = false }) {
     <span className="flex items-center gap-2.5">
       <span
         aria-hidden="true"
-        className={`flex h-9 w-9 items-center justify-center rounded-xl font-display text-sm font-bold ${
+        className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl font-display text-sm font-bold ${
           onBrand
             ? "bg-primary-foreground/15 text-primary-foreground"
             : "bg-brand-gradient text-primary-foreground shadow-glow"
         }`}
       >
-        C
+        8
       </span>
       {!compact && (
-        <span className={`font-display text-lg font-semibold tracking-tight ${onBrand ? "text-primary-foreground" : ""}`}>
-          CreatorFlow
+        // Two-line lockup: wordmark + tagline. `leading-none` on the column
+        // stops the descender of the wordmark colliding with the tagline, which
+        // is what makes stacked brand text look uneven at 10px.
+        <span className="flex flex-col leading-none">
+          <span
+            className={`font-display text-lg font-semibold tracking-tight ${
+              onBrand ? "text-primary-foreground" : "text-foreground"
+            }`}
+          >
+            {/* The "8x" carries the brand, so it takes the accent while "Nanoo"
+                stays in the page's ink colour for a clear reading order. */}
+            <span className={onBrand ? "text-primary-foreground" : "text-primary"}>8x</span>
+            Nanoo
+          </span>
+          <span
+            className={`mt-1 text-[10px] font-medium uppercase tracking-[0.14em] ${
+              onBrand ? "text-primary-foreground/70" : "text-muted-foreground"
+            }`}
+          >
+            Reimagined for 8x
+          </span>
         </span>
       )}
     </span>
@@ -97,7 +116,7 @@ export default function PublicNav() {
             one-off layout rather than a per-frame cost. Listed explicitly so
             nothing else (padding, margin, font-size) can hitch alongside it. */}
         <div className={`flex items-center justify-between transition-[height] duration-200 ease-smooth ${scrolled ? "h-14" : "h-16"}`}>
-          <Link to="/" className="rounded-lg" aria-label="CreatorFlow home">
+          <Link to="/" className="rounded-lg" aria-label="8xNanoo home">
             <Logo />
           </Link>
 

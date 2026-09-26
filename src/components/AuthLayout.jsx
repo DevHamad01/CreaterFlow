@@ -24,7 +24,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
 
       <div className="relative w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Link to="/" className="mb-6 rounded-lg" aria-label="CreatorFlow home">
+          <Link to="/" className="mb-6 rounded-lg" aria-label="8xNanoo home">
             <Logo />
           </Link>
           {Icon && (

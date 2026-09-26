@@ -31,7 +31,7 @@ const CREATOR_NAV = [
 
 /**
  * Hoisted out of AppSidebar so it is not re-created (and re-mounted) on every
- * parent render — that was resetting NotificationCenter's internal state.
+ * parent render â€” that was resetting NotificationCenter's internal state.
  */
 function SidebarContent({ user, isCreator, campaigns, pathname, onNavigate, onSignOut }) {
   const nav = isCreator ? CREATOR_NAV : COMPANY_NAV;
@@ -39,7 +39,7 @@ function SidebarContent({ user, isCreator, campaigns, pathname, onNavigate, onSi
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
-        <Link to="/" onClick={onNavigate} className="rounded-lg" aria-label="CreatorFlow home">
+        <Link to="/" onClick={onNavigate} className="rounded-lg" aria-label="8xNanoo home">
           <Logo />
         </Link>
         {!isCreator && <NotificationCenter user={user} campaigns={campaigns} />}
@@ -206,7 +206,7 @@ export default function AppSidebar() {
           >
             <Menu aria-hidden="true" className="h-5 w-5" />
           </Button>
-          <Link to="/app" aria-label="CreatorFlow dashboard">
+          <Link to="/app" aria-label="8xNanoo dashboard">
             <Logo compact />
           </Link>
           <div className="w-10">{!isCreator && <NotificationCenter user={user} campaigns={campaigns} />}</div>

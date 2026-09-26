@@ -1,0 +1,17 @@
+{
+  "name": "8xNanoo",
+  "short_name": "8xNanoo",
+  "description": "Reimagined for 8x - a B2B LinkedIn creator marketplace.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6C3FF3",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

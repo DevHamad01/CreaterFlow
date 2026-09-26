@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="8xNanoo">
+  <!--
+    8xNanoo mark. Pure geometry (no <text>) so it renders identically in every
+    browser and at every favicon size without depending on a font being
+    available. The two stacked rings read as an "8"; the gradient matches
+    .bg-brand-gradient (from-primary -> to-iris) so the tab icon and the
+    navbar lockup are the same colour story.
+  -->
+  <defs>
+    <linearGradient id="8xnanoo" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6C3FF3"/>
+      <stop offset="1" stop-color="#9B31D8"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#8xnanoo)"/>
+  <g fill="none" stroke="#fff" stroke-width="2.8">
+    <circle cx="16" cy="10.2" r="3.6"/>
+    <circle cx="16" cy="22.2" r="4.6"/>
+  </g>
+</svg>
