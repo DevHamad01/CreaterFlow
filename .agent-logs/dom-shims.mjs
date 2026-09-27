@@ -48,6 +48,20 @@ export function installDomShims() {
       "PointerEvent",
       "ResizeObserver",
       "IntersectionObserver",
+      // Radix primitives (used by ui/select) reach for these by name during
+      // their hidden-content measurement, and Node throws ReferenceError
+      // rather than returning undefined when a DOM constructor is missing.
+      "HTMLFormElement",
+      "HTMLButtonElement",
+      "HTMLInputElement",
+      "HTMLSpanElement",
+      "HTMLDivElement",
+      "HTMLAnchorElement",
+      "HTMLLabelElement",
+      "SVGElement",
+      "DOMRectReadOnly",
+      "FocusEvent",
+      "KeyboardEvent",
     ];
     for (const name of constructors) {
       if (win[name] !== undefined && g[name] === undefined) {

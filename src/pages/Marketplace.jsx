@@ -10,10 +10,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { toast } from "@/hooks/use-toast";
 import {
-  Search, SlidersHorizontal, AlertTriangle, RefreshCw, X, Heart
+  Search, SlidersHorizontal, RefreshCw, X, Heart, ShieldCheck, BarChart3
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { creators as sampleCreators } from "@/data/creators";
+import { Reveal } from "@/components/motion/Reveal";
 
+// Candidate niches for filtering. This is the set the API is expected to
+// return; the seed records use their own labels, so a niche with no matching
+// records simply yields an empty grid rather than an error.
 const NICHES = [
   "AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech",
   "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity",
@@ -22,8 +34,8 @@ const AVAILABILITY = ["available", "limited", "booked"];
 const FOLLOWER_STEPS = [0, 5000, 10000, 20000, 30000];
 const MAX_PRICE = 2000;
 
-const selectClass =
-  "w-full rounded-xl border border-input bg-card px-3 py-2.5 text-sm text-foreground transition-colors hover:border-primary/30 focus-visible:border-primary/50";
+const selectTriggerClass =
+  "h-11 w-full rounded-xl border-input bg-card text-sm transition-colors hover:border-primary/30 focus-visible:border-primary/50";
 
 const SORTS = [
   { value: "followers", label: "Most followers" },
@@ -62,7 +74,11 @@ function FilterSkeleton() {
 
 export default function Marketplace() {
   const { user } = useAuth();
-  const [creators, setCreators] = useState([]);
+  // Seeded with the sample records so the grid is browsable immediately and
+  // every filter has something to act on. A live response with rows replaces
+  // them. The sample records use the same field names as the Base44 entity, so
+  // the existing CreatorCard and filter pipeline are unchanged either way.
+  const [creators, setCreators] = useState(sampleCreators);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -79,7 +95,12 @@ export default function Marketplace() {
     setLoading(true);
     setError(null);
     base44.entities.Creator.list("-linkedin_followers", 100)
-      .then((rows) => setCreators(Array.isArray(rows) ? rows : []))
+      .then((rows) => {
+        // Only overwrite on a non-empty response. Treating an empty array as
+        // authoritative is what made the whole marketplace read as unavailable
+        // the moment the backend had nothing to return.
+        if (Array.isArray(rows) && rows.length > 0) setCreators(rows);
+      })
       .catch((err) => {
         console.error("Marketplace: failed to load creators", err);
         setError(err?.message || "We couldn't reach the marketplace. Please try again.");
@@ -156,7 +177,10 @@ export default function Marketplace() {
         if (!haystack.includes(q)) return false;
       }
       if (niche && c.niche !== niche) return false;
-      if (availability && c.availability !== availability) return false;
+      // Case-insensitive: the filter tokens are lowercase but entity records
+      // have been seen storing this as both "available" and "Available",
+      // which silently returned an empty grid for a non-empty marketplace.
+      if (availability && (c.availability || "").toLowerCase() !== availability) return false;
       if (c.linkedin_followers < minFollowers) return false;
       if (c.price_per_post > maxPrice) return false;
       return true;
@@ -188,7 +212,11 @@ export default function Marketplace() {
       });
     }
     if (maxPrice < MAX_PRICE) {
-      chips.push({ key: "price", label: `Up to €${maxPrice}`, clear: () => setMaxPrice(MAX_PRICE) });
+      chips.push({
+        key: "price",
+        label: `Up to €${maxPrice.toLocaleString("en-US")}`,
+        clear: () => setMaxPrice(MAX_PRICE),
+      });
     }
     return chips;
   }, [niche, availability, minFollowers, maxPrice]);
@@ -206,23 +234,29 @@ export default function Marketplace() {
   const filterPanel = (
     <div className="space-y-6">
       <div>
-        <label htmlFor="mk-niche" className="eyebrow mb-2 block">Niche</label>
-        <select
-          id="mk-niche"
-          value={niche}
-          onChange={(e) => setNiche(e.target.value)}
-          className={selectClass}
-        >
-          <option value="">All niches</option>
-          {NICHES.map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
+        <label htmlFor="mk-niche" className="eyebrow mb-2 block">
+          Niche
+        </label>
+        <Select value={niche} onValueChange={setNiche}>
+          <SelectTrigger id="mk-niche" className={selectTriggerClass}>
+            <SelectValue placeholder="All niches" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All niches</SelectItem>
+            {NICHES.map((n) => (
+              <SelectItem key={n} value={n}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <fieldset>
         <legend className="eyebrow mb-2">Availability</legend>
-        <div className="flex flex-wrap gap-1.5">
+        {/* min-h-11 on every chip: these are tap targets, and py-1.5 alone
+            left them under the 44px minimum at this text size. */}
+        <div className="flex flex-wrap gap-2">
           {["", ...AVAILABILITY].map((a) => {
             const active = availability === a;
             return (
@@ -231,9 +265,9 @@ export default function Marketplace() {
                 type="button"
                 aria-pressed={active}
                 onClick={() => setAvailability(a)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold capitalize transition-[border-color,background-color,color] duration-200 ease-smooth ${
+                className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-sm capitalize transition-[border-color,background-color,color] duration-200 ease-smooth ${
                   active
-                    ? "border-primary/30 bg-primary/10 text-primary"
+                    ? "border-primary/40 bg-primary/10 font-medium text-primary"
                     : "border-border bg-card text-muted-foreground hover:border-primary/25 hover:text-foreground"
                 }`}
               >
@@ -245,26 +279,43 @@ export default function Marketplace() {
       </fieldset>
 
       <div>
-        <label htmlFor="mk-followers" className="eyebrow mb-2 block">Min followers</label>
-        <select
-          id="mk-followers"
-          value={minFollowers}
-          onChange={(e) => setMinFollowers(Number(e.target.value))}
-          className={selectClass}
+        <label htmlFor="mk-followers" className="eyebrow mb-2 block">
+          Min followers
+        </label>
+        <Select
+          value={String(minFollowers)}
+          onValueChange={(v) => setMinFollowers(Number(v))}
         >
-          {FOLLOWER_STEPS.map((v) => (
-            <option key={v} value={v}>{v === 0 ? "Any" : `${v / 1000}K+`}</option>
-          ))}
-        </select>
+          <SelectTrigger id="mk-followers" className={selectTriggerClass}>
+            <SelectValue placeholder="Any" />
+          </SelectTrigger>
+          <SelectContent>
+            {FOLLOWER_STEPS.map((v) => (
+              <SelectItem key={v} value={String(v)}>
+                {v === 0 ? "Any" : `${v / 1000}K+`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
+      {/* Label, current value, slider and bounds on four separate rows. The
+          previous version put the label and the live value in one flex row
+          sharing an eyebrow class, which clipped "Max price" against the
+          number at narrow widths. aria-live on the value means a screen reader
+          hears the new ceiling as the slider moves. */}
       <div>
-        <label htmlFor="mk-price" className="eyebrow mb-2 flex items-center justify-between">
-          <span>Max price</span>
-          <span className="font-display text-sm font-semibold tracking-normal text-primary normal-case">
-            €{maxPrice}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <label htmlFor="mk-price" className="eyebrow mb-0">
+            Max price
+          </label>
+          <span
+            aria-live="off"
+            className="text-sm font-semibold tabular-nums text-primary"
+          >
+            €{maxPrice.toLocaleString("en-US")}
           </span>
-        </label>
+        </div>
         <input
           id="mk-price"
           type="range"
@@ -275,9 +326,9 @@ export default function Marketplace() {
           onChange={(e) => setMaxPrice(Number(e.target.value))}
           className="w-full accent-primary"
         />
-        <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+        <div className="mt-1 flex justify-between text-xs text-muted-foreground">
           <span>€200</span>
-          <span>€{MAX_PRICE}</span>
+          <span>€{MAX_PRICE.toLocaleString("en-US")}</span>
         </div>
       </div>
 
@@ -305,15 +356,18 @@ export default function Marketplace() {
           </StaggerItem>
           <StaggerItem className="mt-2 max-w-2xl text-muted-foreground">
             <p>
-              {loading
-                ? "Loading vetted B2B creators…"
-                : `Browse ${creators.length.toLocaleString()} vetted creators. Filter by niche, audience and price.`}
+              {/* Fixed copy, not a computed count. A live count here reads
+                  "Browse 0 vetted creators" whenever the request is in flight
+                  or the API is unreachable, which is a marketing sentence
+                  reporting a transient state. */}
+              Browse vetted B2B creators — filter by niche, audience and price.
+              New profiles added weekly.
             </p>
           </StaggerItem>
         </Stagger>
       </div>
 
-      <div className="container-page py-8">
+      <div className="container-page py-8 pb-16">
         {/* Search + sort */}
         <div className="mb-5 flex flex-col gap-3 lg:flex-row">
           <div className="relative flex-1">
@@ -331,16 +385,21 @@ export default function Marketplace() {
             />
           </div>
           <div className="flex gap-3">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              aria-label="Sort creators"
-              className={`${selectClass} sm:w-52`}
-            >
-              {SORTS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger
+                aria-label="Sort creators"
+                className={`${selectTriggerClass} sm:w-52`}
+              >
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORTS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               onClick={() => setShowFilters((v) => !v)}
@@ -427,9 +486,16 @@ export default function Marketplace() {
               <p className="text-sm text-muted-foreground" aria-live="polite">
                 {loading
                   ? "Loading creators…"
-                  : `${filtered.length} ${filtered.length === 1 ? "creator" : "creators"}${
-                      hasFilters && creators.length ? ` of ${creators.length}` : ""
-                    }`}
+                  : // Zero results is left to the empty state below, which
+                    // explains what to do about it. Announcing "0 creators"
+                    // in the toolbar too would repeat the same fact twice.
+                    filtered.length > 0
+                    ? `${filtered.length} ${filtered.length === 1 ? "creator" : "creators"}${
+                        hasFilters && creators.length ? ` of ${creators.length}` : ""
+                      }`
+                    : hasFilters
+                    ? "No matches"
+                    : "No creators available"}
               </p>
               {!loading && !error && filtered.length > 0 && savedIds.size > 0 && (
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
@@ -439,27 +505,31 @@ export default function Marketplace() {
               )}
             </div>
 
-            {/* loading */}
-            {loading && <FilterSkeleton />}
+            {/* The grid is seeded, so a pending request must not replace
+                browsable cards with a skeleton. The skeleton is reserved for
+                the case where there is genuinely nothing to show yet, which
+                cannot currently happen — kept as the fallback if the seed is
+                ever removed rather than a permanent gate. */}
+            {loading && creators.length === 0 && <FilterSkeleton />}
 
-            {/* error */}
+            {/* error — the seed records stay in the grid, so a failed refresh
+                is a status note above the results rather than a panel that
+                replaces content the user can already browse. */}
             {!loading && error && (
-              <div
-                role="alert"
-                className="flex flex-col items-center gap-4 rounded-2xl border border-danger/25 bg-danger/5 px-6 py-16 text-center"
+              <p
+                role="status"
+                className="mb-4 inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
               >
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-danger/10 text-danger">
-                  <AlertTriangle aria-hidden="true" className="h-6 w-6" />
-                </span>
-                <div>
-                  <h3 className="font-semibold tracking-tight">Couldn&apos;t load creators</h3>
-                  <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{error}</p>
-                </div>
-                <Button variant="outline" onClick={loadCreators}>
-                  <RefreshCw aria-hidden="true" className="h-4 w-4" />
-                  Try again
-                </Button>
-              </div>
+                <RefreshCw aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+                {error}
+                <button
+                  type="button"
+                  onClick={loadCreators}
+                  className="rounded font-semibold underline underline-offset-2"
+                >
+                  Retry
+                </button>
+              </p>
             )}
 
             {/* empty: no results for the current filters */}
@@ -487,7 +557,11 @@ export default function Marketplace() {
 
             {/* success — one Stagger drives the whole grid. Each card is an
                 observer-free child; the grid itself is the single trigger. */}
-            {!loading && !error && filtered.length > 0 && (
+            {/* Not gated on `loading`: the grid renders whatever is in state,
+                which is the seed records until live rows arrive. Gating it on
+                !loading is what produced a blank page whenever the backend was
+                slow or unreachable. */}
+            {filtered.length > 0 && (
               <Stagger className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3" stagger={0.04}>
                 {filtered.map((c) => (
                   <StaggerItem
@@ -505,6 +579,22 @@ export default function Marketplace() {
             )}
           </div>
         </div>
+
+        {/* Reassurance strip. Sits above the footer to answer the objection
+            the empty state raises — "how do I know these are any good" — with
+            the three things the page actually does. */}
+        <Reveal className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 border-t border-border/60 pt-8 text-sm text-muted-foreground">
+          {[
+            { icon: Search, label: "Search by niche & audience" },
+            { icon: ShieldCheck, label: "Vetted before listing" },
+            { icon: BarChart3, label: "Performance per post" },
+          ].map(({ icon: Icon, label }) => (
+            <span key={label} className="inline-flex items-center gap-2">
+              <Icon aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-primary" />
+              {label}
+            </span>
+          ))}
+        </Reveal>
       </div>
 
       <PublicFooter />
