@@ -100,9 +100,8 @@ for (const [name, html] of [['agencies', agencies], ['companies', companies], ['
   // site-wide, and Home's H1 is the only place one is allowed to survive.
   check(`${name}: no gradient hero`, !has(html, 'text-gradient'));
   check(`${name}: hero is flat dotted, not radial`, has(html, 'bg-dots') && !has(html, 'bg-brand-radial'));
-  // Only the closing band. ForCompanies still has the gradient attribution
-  // panel (statsVariant="panel"); flattening that is Phase 4's item, not
-  // Phase 3's, so it is not asserted here.
+  // ForCompanies' attribution panel was the last gradient CTA-adjacent band.
+  check(`${name}: no brand gradient anywhere in body`, !has(body(html), 'bg-brand-gradient'));
   const closingBand = (body(html).match(/<section class="[^"]*bg-ink[^"]*">[\s\S]*?<\/section>/g) || []).join('');
   check(`${name}: closing CTA band is flat ink`, has(closingBand, 'href="/signup"'));
   check(`${name}: CTA band carries no brand gradient`, !has(closingBand, 'bg-brand-gradient'));
@@ -126,6 +125,7 @@ check('agencies: stat icon token is primary, not success', !has(agencies, 'bg-su
 // because that is what CREATORS_LISTED holds. The rule is that the literal
 // must not be typed into the page, so assert on the source file.
 const agencySource = fs.readFileSync('src/pages/ForAgencies.jsx', 'utf8');
+const companiesSource = fs.readFileSync('src/pages/ForCompanies.jsx', 'utf8');
 check('agencies: no inlined creator count literal', !/3,000\+/.test(agencySource));
 check('agencies: imports count from data/stats', /CREATORS_LISTED/.test(agencySource) && /from "@\/data\/stats"/.test(agencySource));
 
@@ -145,6 +145,35 @@ check('agencies: 6 manual rows', countOf(agencies, /rounded-full border-2 border
 check('agencies: 6 platform checks', countOf(agencies, /FeatureCheck|copy-personalization-none/g) >= 0);
 check('agencies: comparison is neutral, not danger/success wash', !has(agencies, 'bg-danger/5') && !has(agencies, 'bg-success/5'));
 check('agencies: both comparison columns are 2-up', has(agencies, 'md:grid-cols-2'));
+
+// --- companies: bento --------------------------------------------------------
+check('companies: bento layout enabled', /benefitsLayout="bento"/.test(companiesSource));
+check('companies: attribution card spans 2 columns', /title: "Track attribution"[\s\S]{0,400}?span: "lg:col-span-2"/.test(companiesSource));
+check('companies: brief mock rendered', has(companies, 'Generated brief'));
+check('companies: brief mock is decorative', has(companies, 'aria-hidden="true"'));
+check('companies: brief mock shows a tracking link', has(companies, 'cf.link/'));
+check('companies: 6 benefit cards', countOf(companies, /surface-card surface-card-hover p-7/g) === 6);
+
+// --- companies: attribution panel -------------------------------------------
+check('companies: attribution panel is flat ink', has(companies, 'bg-ink text-white'));
+check('companies: attribution rows are glass', has(companies, 'border-white/15 bg-white/[0.07]'));
+// Scoped to the attribution panel specifically. `text-primary-foreground` also
+// appears on the default Button variant, which is a site-wide gradient accent
+// removed in Phase 8; asserting it site-wide here would fail for chrome this
+// phase does not own.
+const attributionPanel = (body(companies).match(/<section class="[^"]*bg-ink text-white[^"]*">[\s\S]*?<\/section>/) || [''])[0];
+check('companies: attribution has no gradient text on colour', has(attributionPanel, 'bg-ink') && !has(attributionPanel, 'text-primary-foreground'));
+check('companies: sparkline is an accessible svg', has(companies, 'role="img"') && has(companies, 'aria-label="Attributed pipeline'));
+check('companies: sparkline has a stroke path', has(companies, 'polyline'));
+// The three figures count up, so they must not be inlined as strings.
+check('companies: attribution figures are counted', !/display: "€48\.2K"/.test(companiesSource));
+check('companies: attribution figures come from data/stats', /COMPANY_ATTRIBUTION/.test(companiesSource));
+
+// --- companies: problem/solution + trust row --------------------------------
+check('companies: problem/solution neutral', !has(companies, 'bg-danger/5') && !has(companies, 'bg-success/5'));
+check('companies: solution column uses check token', has(companies, 'The CreatorFlow way'));
+check('companies: trust is a row, not three cards', !has(companies, 'Built for B2B marketing teams') || !has(companies, 'grid max-w-3xl gap-5 sm:grid-cols-3'));
+check('companies: no inlined creator count literal', !/3,000\+/.test(companiesSource));
 
 // --- faq --------------------------------------------------------------------
 check('agencies: FAQ rendered', has(agencies, 'Can I manage multiple clients'));

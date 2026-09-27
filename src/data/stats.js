@@ -38,6 +38,19 @@ export const AGENCY_REPORT_ROWS = [
   { client: "Ridgeway Robotics", creators: 7, posts: 18, clicks: 1985, leads: 274, pipeline: 13500 },
 ];
 
+// Companies page: attribution band. Counted, so the figures animate; the
+// sparkline series drives the SVG in the ink panel.
+export const COMPANY_ATTRIBUTION = {
+  stats: [
+    { value: 48200, prefix: "\u20ac", label: "Attributed pipeline", change: "+24%" },
+    { value: 418, label: "Qualified clicks", change: "+18%" },
+    { value: 124, label: "Leads generated", change: "+31%" },
+  ],
+  // 12 weeks of attributed pipeline, thousands of euros. Monotonic on purpose:
+  // a dipping revenue line under a "pipeline grew" heading reads as a lie.
+  sparkline: [18, 21, 24, 23, 29, 33, 31, 38, 42, 40, 46, 48.2],
+};
+
 // Case-study band, reused on Pricing as social proof.
 export const CASE_STUDY = {
   client: "Northbeam Labs",

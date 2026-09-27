@@ -10,6 +10,21 @@ const number = new Intl.NumberFormat("en-US");
  *
  * Pass `display` to render a fixed string instead of counting (for figures
  * that are not quantities, like "Unlimited" or "24h").
+ *
+ * `size` is for the places a stat is not a hero figure — a dense ink panel
+ * row, where 4xl would dominate the row it shares with a label. Omit `label`
+ * to render the number alone.
+ *
+ * @param {object} props
+ * @param {number} [props.value]
+ * @param {string} [props.display]   fixed string; renders instead of counting
+ * @param {string} [props.prefix]
+ * @param {string} [props.suffix]
+ * @param {string} [props.label]
+ * @param {"light" | "dark"} [props.tone]
+ * @param {"lg" | "sm"} [props.size]
+ * @param {string} [props.delta]
+ * @param {string} [props.className]
  */
 export function Stat({
   value,
@@ -18,6 +33,7 @@ export function Stat({
   suffix = "",
   label,
   tone = "light",
+  size = "lg",
   delta = null,
   className = "",
 }) {
@@ -30,9 +46,9 @@ export function Stat({
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span
           ref={isFixed ? undefined : ref}
-          className={`text-4xl font-semibold tracking-tight tabular-nums ${
-            tone === "dark" ? "text-white" : "text-foreground"
-          }`}
+          className={`font-semibold tracking-tight tabular-nums ${
+            size === "sm" ? "text-xl" : "text-4xl"
+          } ${tone === "dark" ? "text-white" : "text-foreground"}`}
         >
           {shown}
         </span>
@@ -42,13 +58,15 @@ export function Stat({
           </span>
         ) : null}
       </div>
-      <p
-        className={`mt-1 text-sm ${
-          tone === "dark" ? "text-white/70" : "text-muted-foreground"
-        }`}
-      >
-        {label}
-      </p>
+      {label ? (
+        <p
+          className={`mt-1 text-sm ${
+            tone === "dark" ? "text-white/70" : "text-muted-foreground"
+          }`}
+        >
+          {label}
+        </p>
+      ) : null}
     </div>
   );
 }

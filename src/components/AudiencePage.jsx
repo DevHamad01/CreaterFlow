@@ -21,7 +21,10 @@ import { ArrowRight } from "lucide-react";
  * @property {string} sub
  * @property {string} ctaLabel
  * @property {string} ctaNote
- * @property {{ title: string, body: string, icon: any }[]} benefits
+ * @property {{ title: string, body: string, icon: any, span?: string, visual?: any }[]} benefits
+ *   `span` is an optional col-span class for the bento layout; `visual` is an
+ *   optional node rendered under the copy (mock table, brief, chart).
+ * @property {"grid" | "bento"} [benefitsLayout]
  * @property {{ num: string, title: string, body: string, icon: any }[]} [steps]
  * @property {{ value?: number, display?: string, prefix?: string, suffix?: string,
  *   label: string, icon?: any, change?: string }[]} stats
@@ -48,6 +51,7 @@ export default function AudiencePage({
   ctaLabel,
   ctaNote,
   benefits,
+  benefitsLayout = "grid",
   benefitsHeading,
   benefitsSub,
   steps,
@@ -114,17 +118,30 @@ export default function AudiencePage({
             {benefitsSub && <p className="mt-4 text-muted-foreground">{benefitsSub}</p>}
           </div>
 
+          {/* Bento: cards declare their own col-span so the page has rhythm
+              instead of six identical boxes. Span applies from lg only, so the
+              single-column mobile stack is unaffected. */}
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {benefits.map(({ icon: Icon, title, body }) => (
-              <div key={title} className="surface-card surface-card-hover p-7">
-                <span
-                  aria-hidden="true"
-                  className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
-                >
-                  <Icon className="h-6 w-6" />
-                </span>
-                <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+            {benefits.map(({ icon: Icon, title, body, span, visual }) => (
+              <div
+                key={title}
+                className={`surface-card surface-card-hover p-7 ${
+                  benefitsLayout === "bento" ? span || "" : ""
+                }`}
+              >
+                <div className="flex flex-wrap items-start gap-5">
+                  <div className="min-w-0 flex-1">
+                    <span
+                      aria-hidden="true"
+                      className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
+                    >
+                      <Icon className="h-6 w-6" />
+                    </span>
+                    <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+                  </div>
+                  {visual ? <div className="w-full shrink-0">{visual}</div> : null}
+                </div>
               </div>
             ))}
           </div>
@@ -155,40 +172,74 @@ export default function AudiencePage({
 
       {/* Stats */}
       {statsVariant === "panel" ? (
-        <section className="section-y border-t border-border/60 bg-card">
+        /* Flat ink, not bg-brand-gradient. Saturated brand fill behind
+           primary-foreground text was the lowest-contrast text pairing on the
+           page, and the "attribution" numbers are the ones a buyer reads most
+           carefully. Ink plus white text gives them the contrast they need. */
+        <section className="section-y border-t border-border/60 bg-ink text-white">
           <div className="container-page">
-            <div className="surface-card-strong grid items-center gap-10 bg-brand-gradient p-8 text-primary-foreground sm:p-12 lg:grid-cols-2">
+            <div className="surface-card-strong grid items-center gap-10 bg-ink p-8 sm:p-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
               <div>
-                <span className="eyebrow text-primary-foreground/80">Attribution</span>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+                <span className="eyebrow text-white/60">Attribution</span>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl text-white">
                   Know which creators drove pipeline
                 </h2>
-                <p className="mt-4 leading-relaxed text-primary-foreground/85">
+                <p className="mt-4 leading-relaxed text-white/70">
                   Every creator gets a unique tracking link per campaign. CreatorFlow attributes
                   clicks, qualified clicks, and leads back to the exact post — so you can prove ROI
                   to your team and double down on what works.
                 </p>
+                <svg
+                  viewBox="0 0 100 32"
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label="Attributed pipeline over the last 12 weeks, trending upward"
+                  className="mt-8 h-16 w-full text-primary"
+                >
+                  <polyline
+                    points="0,32 0,28 9.1,26.5 18.2,25.2 27.3,25.7 36.4,22.4 45.5,20.1 54.5,21.2 63.6,17.6 72.7,15.2 81.8,16.2 90.9,12.9 100,11.6 100,32"
+                    fill="currentColor"
+                    fillOpacity="0.12"
+                    stroke="none"
+                  />
+                  <polyline
+                    points="0,28 9.1,26.5 18.2,25.2 27.3,25.7 36.4,22.4 45.5,20.1 54.5,21.2 63.6,17.6 72.7,15.2 81.8,16.2 90.9,12.9 100,11.6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
               </div>
               <ul className="space-y-3">
-                {stats.map(({ icon: Icon, label, value, change }) => (
+                {stats.map(({ icon: Icon, label, value, display, prefix = "", suffix = "", change }) => (
                   <li
                     key={label}
-                    className="flex items-center justify-between gap-4 rounded-xl border border-primary-foreground/15 bg-primary-foreground/10 p-4"
+                    className="flex items-center justify-between gap-4 rounded-xl border border-white/15 bg-white/[0.07] p-4"
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <span
                         aria-hidden="true"
-                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary-foreground/15"
+                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-primary"
                       >
                         <Icon className="h-4 w-4" />
                       </span>
-                      <span className="truncate text-sm">{label}</span>
+                      <span className="truncate text-sm text-white/85">{label}</span>
                     </span>
                     <span className="text-right">
-                      <span className="block font-display text-base font-semibold">{value}</span>
-                      {change && (
-                        <span className="block text-xs font-medium text-primary-foreground">{change}</span>
-                      )}
+                      <Stat
+                        value={value}
+                        display={display}
+                        prefix={prefix}
+                        suffix={suffix}
+                        tone="dark"
+                        size="sm"
+                      />
+                      {change ? (
+                        <span className="mt-1 block text-xs font-medium text-primary">{change}</span>
+                      ) : null}
                     </span>
                   </li>
                 ))}
