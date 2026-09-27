@@ -74,7 +74,13 @@
   }
 
   .dark {
-    --primary: 255 90% 70%;
+    /* 72%, not 70%: `text-primary` on `bg-muted` measured 4.41 against the
+       4.5 AA threshold, and --muted (15% L) is lighter than --card (10% L) in
+       dark mode, so that pair is the tightest of the four. Dark mode's
+       --primary-foreground is a dark ink, so a primary button is
+       light-fill/dark-text -- lightening this token improves the
+       foreground-on-primary pair at the same time. No other pair regresses. */
+    --primary: 255 90% 72%;
     --primary-foreground: 250 40% 8%;
     --iris: 280 82% 74%;
     --iris-foreground: 250 40% 8%;

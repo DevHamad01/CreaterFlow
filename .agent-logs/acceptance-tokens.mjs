@@ -76,6 +76,23 @@ for (const hit of hits) {
   problems.push(`${hit.name}:${hit.line}  ${hit.label}  ${hit.text}`);
 }
 
+// --- fill-only tokens must not be used as text ------------------------------
+// --mint is a fill token ("bright signal fill"): mint on background measures
+// 1.68 in light and 2.07 on a brand surface, so it cannot be a text colour.
+// The contrast harnesses therefore assert no mint-as-text pair, which removes
+// the only thing that would catch a future `text-mint`. Enforce the invariant
+// here instead, so the guarantee does not depend on remembering a number.
+for (const file of files) {
+  const name = path.basename(file);
+  if (name === 'index.css') continue;
+  const code = stripComments(fs.readFileSync(file, 'utf8'));
+  code.split('\n').forEach((line, i) => {
+    if (/\btext-mint\b/.test(line)) {
+      problems.push(`${name}:${i + 1}  text-mint  mint is a fill-only token and fails AA as text: ${line.trim()}`);
+    }
+  });
+}
+
 for (const [name, budget] of Object.entries(ALLOW)) {
   if (budget !== 0) {
     problems.push(`${name}: expected ${budget} sanctioned text-gradient span(s), but the budget was not fully consumed`);
@@ -85,7 +102,9 @@ for (const [name, budget] of Object.entries(ALLOW)) {
 console.log(`scanned ${files.length} files under ${SRC}`);
 console.log(`allowed: Home hero H1 text-gradient (1), skeleton shimmer bg-gradient-to- (functional)\n`);
 if (problems.length === 0) {
-  console.log('ACCEPTANCE PASS: the only gradients in src are the Home hero H1 and the skeleton shimmer.');
+  console.log('ACCEPTANCE PASS');
+  console.log('  - the only gradients in src are the Home hero H1 and the skeleton shimmer');
+  console.log('  - mint is never used as a text colour');
   process.exit(0);
 }
 console.log(`ACCEPTANCE FAIL (${problems.length}):`);

@@ -8,7 +8,13 @@ const R=(a,b)=>{const[x,y]=[lum(rgb(a)),lum(rgb(b))].sort((p,q)=>q-p);return (x+
 const L=parse(blk(/^\s*:root\s*\{/)),D=parse(blk(/^\s*\.dark\s*\{/));
 // pairs that ARE actually rendered in the code
 const RENDERED=[
- ["mint text on brand surface","mint","primary",4.5],
+  // Mint is a fill token, not a text token. Its only rendered use is a 6px
+  // status dot on Home's attribution panel, where the label beside it is
+  // white/85 on ink. "mint on primary" was asserted here as a pair that "is
+  // actually rendered", but no such combination exists in the code -- verified
+  // by a zero-hit search for text-mint across src. Dropped rather than
+  // "fixed", because making mint pass as text would mean darkening the signal
+  // colour that reads as a positive delta on a dark surface.
  ["primary-fg on brand surface","primary-foreground","primary",4.5],
  ["iris-fg on iris","iris-foreground","iris",4.5],
  ["success on card","success","card",4.5],
