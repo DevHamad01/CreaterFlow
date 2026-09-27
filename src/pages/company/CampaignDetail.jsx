@@ -27,6 +27,14 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
 import { base44 } from "@/api/base44Client";
+import {
+  campaigns as seedCampaigns,
+  campaignCreators as seedCampaignCreators,
+  posts as seedPosts,
+  metrics as seedMetrics,
+  leads as seedLeads,
+  payments as seedPayments,
+} from "@/data/app";
 import { CHART_COLORS, CHART_TOOLTIP, CHART_AXIS_TICK } from "@/lib/chartTheme";
 import { cn } from "@/lib/utils";
 
@@ -76,8 +84,16 @@ export default function CampaignDetail() {
     setLoading(true);
     setError(null);
     setNotFound(false);
+    // A seeded campaign id resolves from local data, so the detail view works
+    // without a round trip. Unknown ids still hit the backend so a real
+    // not-found is still reported as one.
+    const seeded = seedCampaigns.find((c) => c.id === id) || null;
+    const scoped = (rows, seed) => {
+      if (Array.isArray(rows) && rows.length > 0) return rows;
+      return seed.filter((row) => row.campaign_id === id);
+    };
     Promise.all([
-      base44.entities.Campaign.get(id),
+      seeded ? Promise.resolve(seeded) : base44.entities.Campaign.get(id).catch(() => null),
       base44.entities.CampaignCreator.filter({ campaign_id: id }),
       base44.entities.Post.filter({ campaign_id: id }),
       base44.entities.CampaignMetric.filter({ campaign_id: id }),
@@ -85,8 +101,16 @@ export default function CampaignDetail() {
       base44.entities.Payment.filter({ campaign_id: id }),
     ])
       .then(([c, cc, p, m, l, pay]) => {
-        setCampaign(c); setCampaignCreators(cc || []); setPosts(p || []); setMetrics(m || []);
-        setLeads(l || []); setPayments(pay || []);
+        if (!c) {
+          setNotFound(true);
+          return;
+        }
+        setCampaign(c);
+        setCampaignCreators(scoped(cc, seedCampaignCreators));
+        setPosts(scoped(p, seedPosts));
+        setMetrics(scoped(m, seedMetrics));
+        setLeads(scoped(l, seedLeads));
+        setPayments(scoped(pay, seedPayments));
       })
       .catch((err) => {
         console.error("CampaignDetail: load failed", err);
@@ -264,7 +288,7 @@ export default function CampaignDetail() {
     );
   }
 
-  if (error || notFound) {
+  if (notFound || (error && !campaign)) {
     return (
       <div className="space-y-6">
         <Button variant="ghost" size="sm" onClick={() => navigate("/app/campaigns")}>
@@ -330,6 +354,23 @@ export default function CampaignDetail() {
         <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         Back to campaigns
       </Button>
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 self-start rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample data — {error}
+          <button
+            type="button"
+            onClick={load}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <div className="surface-card surface-card-strong p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">

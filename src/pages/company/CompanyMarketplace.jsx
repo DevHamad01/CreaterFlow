@@ -21,6 +21,9 @@ import {
   AlertTriangle, RefreshCw, Loader2, SlidersHorizontal
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent } from "@/lib/seeded";
+import { creators as sampleCreators } from "@/data/creators";
+import { campaigns as seedCampaigns, favorites as seedFavorites } from "@/data/app";
 import { cn } from "@/lib/utils";
 
 const NICHES = ["AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech", "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity"];
@@ -39,7 +42,7 @@ const selectClass =
 export default function CompanyMarketplace() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [creators, setCreators] = useState([]);
+  const [creators, setCreators] = useState(sampleCreators);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -48,7 +51,7 @@ export default function CompanyMarketplace() {
   const [maxPrice, setMaxPrice] = useState(2000);
   const [sortBy, setSortBy] = useState("followers");
   const [savedIds, setSavedIds] = useState(new Set());
-  const [campaigns, setCampaigns] = useState([]);
+  const [campaigns, setCampaigns] = useState(seedCampaigns);
   const [addToCampaign, setAddToCampaign] = useState(null);
   const [matchCampaignId, setMatchCampaignId] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -61,7 +64,7 @@ export default function CompanyMarketplace() {
     setLoading(true);
     setError(null);
     base44.entities.Creator.list("-linkedin_followers", 100)
-      .then((rows) => setCreators(rows || []))
+      .then((rows) => setCreators(preferLive(sampleCreators)(rows)))
       .catch((err) => {
         console.error("CompanyMarketplace: creators load failed", err);
         setError("We couldn't load the creator directory. Check your connection and try again.");
@@ -72,10 +75,10 @@ export default function CompanyMarketplace() {
   const loadUserData = useCallback(() => {
     if (!user) return;
     base44.entities.Favorite.filter({ created_by_id: user.id })
-      .then((favs) => setSavedIds(new Set(favs.map((f) => f.creator_id))))
+      .then((favs) => setSavedIds(new Set(preferLive(seedFavorites)(favs).map((f) => f.creator_id))))
       .catch(() => {});
     base44.entities.Campaign.filter({ created_by_id: user.id })
-      .then((rows) => setCampaigns(rows || []))
+      .then((rows) => setCampaigns(preferLive(seedCampaigns)(rows)))
       .catch(() => {});
   }, [user]);
 
@@ -283,6 +286,23 @@ export default function CompanyMarketplace() {
         }
       />
 
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample creators — {error}
+          <button
+            type="button"
+            onClick={loadCreators}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
+
       <div className="surface-card p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="relative sm:col-span-2 xl:col-span-1">
@@ -479,7 +499,7 @@ export default function CompanyMarketplace() {
             <Skeleton key={i} className="h-52 rounded-2xl" />
           ))}
         </div>
-      ) : error ? (
+      ) : error && !hasContent(creators) ? (
         <div className="surface-card mx-auto max-w-lg p-8" role="alert">
           <EmptyState
             icon={AlertTriangle}

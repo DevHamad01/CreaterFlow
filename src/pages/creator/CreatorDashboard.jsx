@@ -10,14 +10,28 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Megaphone, Wallet, TrendingUp, PenSquare, MessageSquare, AlertTriangle, RefreshCw, UserRound } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent, scopedToCreator } from "@/lib/seeded";
+import {
+  campaignCreators as seedCampaignCreators,
+  campaigns as seedCampaigns,
+  posts as seedPosts,
+  payments as seedPayments,
+  DEMO_CREATOR_NAME,
+} from "@/data/app";
 
 export default function CreatorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [campaignCreators, setCampaignCreators] = useState([]);
-  const [campaigns, setCampaigns] = useState([]);
-  const [posts, setPosts] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [campaignCreators, setCampaignCreators] = useState(() =>
+    seedCampaignCreators.filter((c) => c.creator_name === DEMO_CREATOR_NAME)
+  );
+  const [campaigns, setCampaigns] = useState(seedCampaigns);
+  const [posts, setPosts] = useState(() =>
+    seedPosts.filter((row) => row.creator_name === DEMO_CREATOR_NAME)
+  );
+  const [payments, setPayments] = useState(() =>
+    seedPayments.filter((row) => row.creator_name === DEMO_CREATOR_NAME)
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,10 +50,31 @@ export default function CreatorDashboard() {
     ])
       .then(([cc, camps, p, pay]) => {
         const creatorName = user.full_name || "";
-        setCampaignCreators((cc || []).filter((c) => c.creator_name === creatorName));
-        setCampaigns(camps || []);
-        setPosts((p || []).filter((row) => row.creator_name === creatorName));
-        setPayments((pay || []).filter((row) => row.creator_name === creatorName));
+        setCampaignCreators(
+          scopedToCreator(
+            (cc || []).filter((c) => c.creator_name === creatorName),
+            seedCampaignCreators,
+            creatorName,
+            DEMO_CREATOR_NAME
+          )
+        );
+        setCampaigns(preferLive(seedCampaigns)(camps));
+        setPosts(
+          scopedToCreator(
+            (p || []).filter((row) => row.creator_name === creatorName),
+            seedPosts,
+            creatorName,
+            DEMO_CREATOR_NAME
+          )
+        );
+        setPayments(
+          scopedToCreator(
+            (pay || []).filter((row) => row.creator_name === creatorName),
+            seedPayments,
+            creatorName,
+            DEMO_CREATOR_NAME
+          )
+        );
       })
       .catch((err) => {
         console.error("CreatorDashboard: load failed", err);
@@ -78,7 +113,7 @@ export default function CreatorDashboard() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(campaigns, campaignCreators, posts, payments)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -104,6 +139,23 @@ export default function CreatorDashboard() {
         title={firstName ? `Welcome back, ${firstName}` : "Your creator dashboard"}
         description="Track your deals, drafts, and earnings in one place."
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample work — {error}
+          <button
+            type="button"
+            onClick={load}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       {!user?.full_name ? (
         <div className="surface-card">

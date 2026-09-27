@@ -4,6 +4,10 @@ import {
   sendPasswordResetEmail,
   confirmPasswordReset,
   updateProfile,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -295,6 +299,43 @@ async function getOrCreateUserProfile(firebaseUser) {
   await setDoc(ref, profile, { merge: true });
   return profile;
 }
+
+function requireConfigured() {
+  if (!isFirebaseConfigured) throw new Error(NOT_CONFIGURED_ERROR);
+  if (!auth) throw new Error(NOT_CONFIGURED_ERROR);
+}
+
+/**
+ * Sign-in helpers for the auth pages.
+ *
+ * These pages previously imported Firebase's helpers directly and passed the
+ * `auth` export. When the app is unconfigured, `auth` is the signed-out stub,
+ * and handing that stub to Firebase reaches into its internals and fails with
+ * "Cannot read properties of undefined (reading 'settings')" — an error that
+ * says nothing about the actual cause. Every entry point therefore checks the
+ * config first, so the failure is the actionable NOT_CONFIGURED_ERROR.
+ */
+export const authActions = {
+  async signInWithEmail(email, password) {
+    requireConfigured();
+    return signInWithEmailAndPassword(auth, email, password);
+  },
+
+  async signInWithGoogle() {
+    requireConfigured();
+    return signInWithPopup(auth, new GoogleAuthProvider());
+  },
+
+  async createAccount(email, password) {
+    requireConfigured();
+    return createUserWithEmailAndPassword(auth, email, password);
+  },
+
+  async setDisplayName(user, displayName) {
+    requireConfigured();
+    return updateProfile(user, { displayName });
+  },
+};
 
 export const base44 = {
   entities,

@@ -215,9 +215,12 @@ check('earnings loading: sr-only status', has(html, 'Loading earnings'));
 check('earnings loading: no error alert', !has(html, 'role="alert"'));
 await unmount(host, root);
 
+// A failed refresh must degrade to an announced notice over usable content,
+// not replace the page with a dead end.
 ({ html, host, root } = await renderPage('earnings-error', Earnings, 'reject'));
-check('earnings error: role=alert', has(html, 'role="alert"'));
-check('earnings error: retry affordance', has(html, 'Try again'));
+check('earnings error: announces the sample-data fallback', has(html, 'role="status"') && has(html, 'Showing sample'));
+check('earnings error: retry affordance', has(html, 'Retry'));
+check('earnings error: still shows payout content', has(html, 'Total earnings'));
 check('earnings error: no skeletons', !has(html, 'animate-shimmer') && !has(html, 'aria-busy="true"'));
 await unmount(host, root);
 
@@ -246,7 +249,8 @@ check('mycampaigns loading: sr-only status', has(html, 'Loading your campaigns')
 await unmount(host, root);
 
 ({ html, host, root } = await renderPage('mycampaigns-error', MyCampaigns, 'reject'));
-check('mycampaigns error: role=alert + retry', has(html, 'role="alert"') && has(html, 'Try again'));
+check('mycampaigns error: announced fallback + retry', has(html, 'role="status"') && has(html, 'Retry'));
+check('mycampaigns error: still shows seeded campaigns', has(html, 'Showing sample'));
 await unmount(host, root);
 
 ({ html, host, root } = await renderPage('mycampaigns-success', MyCampaigns, 'resolve'));
@@ -268,7 +272,8 @@ check('opportunities loading: sr-only status', has(html, 'Loading opportunities'
 await unmount(host, root);
 
 ({ html, host, root } = await renderPage('opportunities-error', Opportunities, 'reject'));
-check('opportunities error: role=alert + retry', has(html, 'role="alert"') && has(html, 'Try again'));
+check('opportunities error: announced fallback + retry', has(html, 'role="status"') && has(html, 'Retry'));
+check('opportunities error: still lists open campaigns', has(html, 'Showing sample'));
 await unmount(host, root);
 
 ({ html, host, root } = await renderPage('opportunities-success', Opportunities, 'resolve'));

@@ -16,16 +16,23 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent } from "@/lib/seeded";
+import {
+  campaigns as seedCampaigns,
+  leads as seedLeads,
+  metrics as seedMetrics,
+  payments as seedPayments,
+} from "@/data/app";
 import { CHART_COLORS, CHART_TOOLTIP, CHART_AXIS_TICK } from "@/lib/chartTheme";
 
 const CHART = CHART_COLORS;
 
 export default function Analytics() {
   const { user } = useAuth();
-  const [campaigns, setCampaigns] = useState([]);
-  const [metrics, setMetrics] = useState([]);
-  const [leads, setLeads] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [campaigns, setCampaigns] = useState(seedCampaigns);
+  const [metrics, setMetrics] = useState(seedMetrics);
+  const [leads, setLeads] = useState(seedLeads);
+  const [payments, setPayments] = useState(seedPayments);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -43,12 +50,15 @@ export default function Analytics() {
       base44.entities.Payment.filter({ created_by_id: user.id }),
     ])
       .then(([c, m, l, p]) => {
-        // Filter metrics to only this user's campaigns
-        const campaignIds = new Set(c.map((camp) => camp.id));
-        setCampaigns(c || []);
-        setMetrics((m || []).filter((mt) => campaignIds.has(mt.campaign_id)));
-        setLeads(l || []);
-        setPayments(p || []);
+        // Filter metrics to only this user's campaigns. The seed rows are
+        // already scoped to the seed campaigns, so the same filter is applied
+        // to whichever campaigns ended up in state.
+        const resolvedCampaigns = preferLive(seedCampaigns)(c);
+        const campaignIds = new Set(resolvedCampaigns.map((camp) => camp.id));
+        setCampaigns(resolvedCampaigns);
+        setMetrics(preferLive(seedMetrics)(m).filter((mt) => campaignIds.has(mt.campaign_id)));
+        setLeads(preferLive(seedLeads)(l));
+        setPayments(preferLive(seedPayments)(p));
       })
       .catch((err) => {
         console.error("Analytics: load failed", err);
@@ -84,7 +94,7 @@ export default function Analytics() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(campaigns, metrics, leads, payments)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -155,6 +165,23 @@ export default function Analytics() {
         icon={BarChart3}
         description="Performance across all your campaigns"
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample data — {error}
+          <button
+            type="button"
+            onClick={load}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4" stagger={0.05}>
         <StatCard label="Impressions" value={totalImpressions.toLocaleString()} icon={TrendingUp} accent="iris" />

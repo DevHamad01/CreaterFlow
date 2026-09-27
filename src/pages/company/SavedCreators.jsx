@@ -11,6 +11,8 @@ import { Trash2, StickyNote, Tag, ChevronDown, Filter, X, Check,
   AlertTriangle, RefreshCw, Loader2
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent } from "@/lib/seeded";
+import { favorites as seedFavorites } from "@/data/app";
 import { cn } from "@/lib/utils";
 
 const PIPELINE_STAGES = [
@@ -32,7 +34,7 @@ const TAGS = [
 
 export default function SavedCreators() {
   const { user } = useAuth();
-  const [favorites, setFavorites] = useState([]);
+  const [favorites, setFavorites] = useState(seedFavorites);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterStage, setFilterStage] = useState("");
@@ -52,7 +54,7 @@ export default function SavedCreators() {
     setLoading(true);
     setError(null);
     base44.entities.Favorite.filter({ created_by_id: user.id }, "-created_date")
-      .then((rows) => setFavorites(rows || []))
+      .then((rows) => setFavorites(preferLive(seedFavorites)(rows)))
       .catch((err) => {
         console.error("SavedCreators: load failed", err);
         setError("We couldn't load your pipeline. Check your connection and try again.");
@@ -182,7 +184,7 @@ export default function SavedCreators() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(favorites)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -206,6 +208,23 @@ export default function SavedCreators() {
         title="Creator CRM"
         description={`${favorites.length} ${favorites.length === 1 ? "creator" : "creators"} in your pipeline`}
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample creators — {error}
+          <button
+            type="button"
+            onClick={loadFavorites}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       {favorites.length > 0 && (
         <>

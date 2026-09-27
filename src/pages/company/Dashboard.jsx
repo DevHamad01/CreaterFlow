@@ -13,6 +13,12 @@ import {
   TrendingUp, Search, BarChart3, AlertTriangle, RefreshCw, ArrowRight
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent } from "@/lib/seeded";
+import {
+  campaigns as seedCampaigns,
+  leads as seedLeads,
+  payments as seedPayments,
+} from "@/data/app";
 
 const ACTIVE_STATUSES = ["active", "recruiting", "review", "live"];
 
@@ -43,9 +49,12 @@ const QUICK_ACTIONS = [
 export default function CompanyDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [campaigns, setCampaigns] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [leads, setLeads] = useState([]);
+  // Seeded so the dashboard is populated on first paint. Each collection is
+  // replaced only by a non-empty live response, so an empty or unreachable
+  // backend leaves the workspace browsable instead of blank.
+  const [campaigns, setCampaigns] = useState(seedCampaigns);
+  const [payments, setPayments] = useState(seedPayments);
+  const [leads, setLeads] = useState(seedLeads);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -62,9 +71,9 @@ export default function CompanyDashboard() {
       base44.entities.Lead.filter({ created_by_id: user.id }),
     ])
       .then(([c, p, l]) => {
-        setCampaigns(c || []);
-        setPayments(p || []);
-        setLeads(l || []);
+        setCampaigns(preferLive(seedCampaigns)(c));
+        setPayments(preferLive(seedPayments)(p));
+        setLeads(preferLive(seedLeads)(l));
       })
       .catch((err) => {
         console.error("CompanyDashboard: load failed", err);
@@ -107,7 +116,9 @@ export default function CompanyDashboard() {
     );
   }
 
-  if (error) {
+  // Only take over the page when there is genuinely nothing to show. With the
+  // seed present a failed refresh is an inline notice below, not a dead end.
+  if (error && !hasContent(campaigns, payments, leads)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -145,6 +156,23 @@ export default function CompanyDashboard() {
           </Button>
         }
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample data — {error}
+          <button
+            type="button"
+            onClick={loadDashboard}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4" stagger={0.05}>
         <StatCard label="Active campaigns" value={activeCampaigns} icon={FolderKanban} accent="primary" />

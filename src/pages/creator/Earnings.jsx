@@ -9,10 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, CheckCircle2, Clock, TrendingUp, AlertTriangle, RefreshCw, UserRound } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { hasContent, scopedToCreator } from "@/lib/seeded";
+import { payments as seedPayments, DEMO_CREATOR_NAME } from "@/data/app";
 
 export default function Earnings() {
   const { user } = useAuth();
-  const [payments, setPayments] = useState([]);
+  const [payments, setPayments] = useState(() =>
+    seedPayments.filter((row) => row.creator_name === DEMO_CREATOR_NAME)
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -25,7 +29,9 @@ export default function Earnings() {
     setError(null);
     const creatorName = user.full_name || "";
     base44.entities.Payment.filter({ creator_name: creatorName }, "-created_date")
-      .then((rows) => setPayments(rows || []))
+      .then((rows) =>
+        setPayments(scopedToCreator(rows, seedPayments, creatorName, DEMO_CREATOR_NAME))
+      )
       .catch((err) => {
         console.error("Earnings: load failed", err);
         setError("We couldn't load your earnings. Check your connection and try again.");
@@ -55,7 +61,7 @@ export default function Earnings() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(payments)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -106,6 +112,23 @@ export default function Earnings() {
         icon={Wallet}
         description="Your payouts and payment history"
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample payouts — {error}
+          <button
+            type="button"
+            onClick={load}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Total earnings" value={`€${totalAll.toLocaleString()}`} icon={Wallet} accent="neutral" />

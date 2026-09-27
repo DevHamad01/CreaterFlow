@@ -15,12 +15,29 @@ import {
   Briefcase, PenSquare, Loader2, Send, ExternalLink, AlertTriangle, RefreshCw, UserRound
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { hasContent, scopedToCreator } from "@/lib/seeded";
+import {
+  campaignCreators as seedCampaignCreators,
+  campaigns as seedCampaigns,
+  posts as seedPosts,
+  DEMO_CREATOR_NAME,
+} from "@/data/app";
 
 export default function MyCampaigns() {
   const { user } = useAuth();
-  const [collabs, setCollabs] = useState([]);
-  const [campaigns, setCampaigns] = useState([]);
-  const [posts, setPosts] = useState([]);
+  const [collabs, setCollabs] = useState(() =>
+    seedCampaignCreators.filter((c) => c.creator_name === DEMO_CREATOR_NAME)
+  );
+  const [campaigns, setCampaigns] = useState(() =>
+    seedCampaigns.filter((c) =>
+      seedCampaignCreators
+        .filter((cc) => cc.creator_name === DEMO_CREATOR_NAME)
+        .some((cc) => cc.campaign_id === c.id)
+    )
+  );
+  const [posts, setPosts] = useState(() =>
+    seedPosts.filter((row) => row.creator_name === DEMO_CREATOR_NAME)
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitDraft, setSubmitDraft] = useState(null);
@@ -41,12 +58,20 @@ export default function MyCampaigns() {
       base44.entities.Post.filter({ creator_name: creatorName }, "-created_date"),
     ])
       .then(([cc, p]) => {
-        setCollabs(cc || []);
-        setPosts(p || []);
-        // Get campaign details
-        return Promise.all((cc || []).map((c) => base44.entities.Campaign.get(c.campaign_id).catch(() => null)));
+        const nextCollabs = scopedToCreator(cc, seedCampaignCreators, creatorName, DEMO_CREATOR_NAME);
+        setCollabs(nextCollabs);
+        setPosts(scopedToCreator(p, seedPosts, creatorName, DEMO_CREATOR_NAME));
+        // Get campaign details. Seeded collabs resolve locally so the sample
+        // list renders without a per-row round trip to an unavailable backend.
+        return Promise.all(
+          nextCollabs.map((c) => {
+            const seeded = seedCampaigns.find((s) => s.id === c.campaign_id);
+            if (seeded) return Promise.resolve(seeded);
+            return base44.entities.Campaign.get(c.campaign_id).catch(() => null);
+          })
+        );
       })
-      .then(setCampaigns)
+      .then((rows) => setCampaigns(rows.filter(Boolean)))
       .catch((err) => {
         console.error("MyCampaigns: load failed", err);
         setError("We couldn't load your campaigns. Check your connection and try again.");
@@ -108,7 +133,7 @@ export default function MyCampaigns() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(collabs, campaigns)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -133,6 +158,23 @@ export default function MyCampaigns() {
         icon={Briefcase}
         description={`${collabs.length} ${collabs.length === 1 ? "collaboration" : "collaborations"}`}
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample campaigns — {error}
+          <button
+            type="button"
+            onClick={load}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       {!user?.full_name ? (
         <div className="surface-card">

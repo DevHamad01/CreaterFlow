@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, AlertTriangle, RefreshCw, SearchX, CalendarDays, Wallet } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent } from "@/lib/seeded";
+import { campaigns as seedCampaigns } from "@/data/app";
 
 const STATUSES = ["draft", "recruiting", "active", "review", "live", "completed"];
 
@@ -18,7 +20,7 @@ const pretty = (s) => (s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice
 export default function Campaigns() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [campaigns, setCampaigns] = useState([]);
+  const [campaigns, setCampaigns] = useState(seedCampaigns);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -31,7 +33,7 @@ export default function Campaigns() {
     setLoading(true);
     setError(null);
     base44.entities.Campaign.filter({ created_by_id: user.id }, "-created_date")
-      .then((rows) => setCampaigns(rows || []))
+      .then((rows) => setCampaigns(preferLive(seedCampaigns)(rows)))
       .catch((err) => {
         console.error("Campaigns: load failed", err);
         setError("We couldn't load your campaigns. Check your connection and try again.");
@@ -85,7 +87,7 @@ export default function Campaigns() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(campaigns)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -115,6 +117,23 @@ export default function Campaigns() {
           </Button>
         }
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample campaigns — {error}
+          <button
+            type="button"
+            onClick={loadCampaigns}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <FilterTabs tabs={tabs} value={filter} onChange={setFilter} ariaLabel="Filter by status" />
 

@@ -9,12 +9,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { Megaphone, Check, Loader2, AlertTriangle, RefreshCw, UserRound } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive, hasContent, scopedToCreator } from "@/lib/seeded";
+import {
+  campaignCreators as seedCampaignCreators,
+  campaigns as seedCampaigns,
+  DEMO_CREATOR_NAME,
+} from "@/data/app";
+import { creators as sampleCreators } from "@/data/creators";
 
 export default function Opportunities() {
   const { user } = useAuth();
-  const [campaigns, setCampaigns] = useState([]);
-  const [myCollabs, setMyCollabs] = useState([]);
-  const [myProfile, setMyProfile] = useState(null);
+  // This page lists open work, so the seed is the open slice of the campaigns.
+  const [campaigns, setCampaigns] = useState(() =>
+    seedCampaigns.filter((c) => c.status === "recruiting" || c.status === "active")
+  );
+  const [myCollabs, setMyCollabs] = useState(() =>
+    seedCampaignCreators.filter((c) => c.creator_name === DEMO_CREATOR_NAME)
+  );
+  const [myProfile, setMyProfile] = useState(
+    () => sampleCreators.find((c) => c.name === DEMO_CREATOR_NAME) || null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [acting, setActing] = useState(null);
@@ -37,10 +51,25 @@ export default function Opportunities() {
         // between them; de-duplicate so React keys stay unique.
         const byId = new Map();
         [...(recruiting || []), ...(active || [])].forEach((c) => byId.set(c.id, c));
-        setCampaigns([...byId.values()]);
+        setCampaigns(
+          preferLive(
+            seedCampaigns.filter((c) => c.status === "recruiting" || c.status === "active")
+          )([...byId.values()])
+        );
         const creatorName = user.full_name || "";
-        setMyCollabs((myCc || []).filter((cc) => cc.creator_name === creatorName));
-        setMyProfile((allCreators || []).find((c) => c.name === creatorName) || null);
+        setMyCollabs(
+          scopedToCreator(
+            (myCc || []).filter((cc) => cc.creator_name === creatorName),
+            seedCampaignCreators,
+            creatorName,
+            DEMO_CREATOR_NAME
+          )
+        );
+        setMyProfile(
+          (allCreators || []).find((c) => c.name === creatorName) ||
+            sampleCreators.find((c) => c.name === DEMO_CREATOR_NAME) ||
+            null
+        );
       })
       .catch((err) => {
         console.error("Opportunities: load failed", err);
@@ -121,7 +150,7 @@ export default function Opportunities() {
     );
   }
 
-  if (error) {
+  if (error && !hasContent(campaigns)) {
     return (
       <div className="surface-card mx-auto max-w-lg p-8" role="alert">
         <EmptyState
@@ -146,6 +175,23 @@ export default function Opportunities() {
         icon={Megaphone}
         description="Brand campaigns looking for creators like you"
       />
+
+      {error && (
+        <p
+          role="status"
+          className="inline-flex items-center gap-2 rounded-full border border-warning/25 bg-warning/5 px-3 py-1 text-xs text-warning"
+        >
+          <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+          Showing sample opportunities — {error}
+          <button
+            type="button"
+            onClick={load}
+            className="rounded font-semibold underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       {!user?.full_name ? (
         <div className="surface-card">

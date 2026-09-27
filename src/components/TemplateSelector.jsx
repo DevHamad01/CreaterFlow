@@ -12,6 +12,8 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { Save, FolderOpen, Trash2, FileText, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive } from "@/lib/seeded";
+import { campaignTemplates as seedTemplates } from "@/data/app";
 
 const CATEGORIES = [
   { value: "lead_gen", label: "Lead Generation" },
@@ -22,7 +24,7 @@ const CATEGORIES = [
 ];
 
 export function TemplateSelector({ onApply, onClose }) {
-  const [templates, setTemplates] = useState([]);
+  const [templates, setTemplates] = useState(seedTemplates);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -31,7 +33,7 @@ export function TemplateSelector({ onApply, onClose }) {
     setLoading(true);
     setError(null);
     base44.entities.CampaignTemplate.list("-created_date", 50)
-      .then((rows) => setTemplates(rows || []))
+      .then((rows) => setTemplates(preferLive(seedTemplates)(rows)))
       .catch((err) => {
         console.error("TemplateSelector: load failed", err);
         setError("We couldn't load your templates. Check your connection and try again.");
@@ -106,7 +108,7 @@ export function TemplateSelector({ onApply, onClose }) {
                 <Skeleton key={i} className="h-20 rounded-xl" />
               ))}
             </div>
-          ) : error ? (
+          ) : error && templates.length === 0 ? (
             <div className="px-4 py-10 text-center" role="alert">
               <AlertTriangle aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-warning" />
               <p className="text-sm text-foreground">{error}</p>

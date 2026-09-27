@@ -16,6 +16,8 @@ import {
   Users, FileText, BarChart3, Lightbulb, AlertCircle, Rocket, FolderOpen, Save, UsersRound
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive } from "@/lib/seeded";
+import { creators as sampleCreators } from "@/data/creators";
 import { cn } from "@/lib/utils";
 
 const NICHES = ["AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech", "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity"];
@@ -94,7 +96,7 @@ export default function NewCampaign() {
     setCreatorsError(null);
     base44.entities.Creator.list("-linkedin_followers", 100)
       .then((rows) => {
-        if (!cancelled) setAllCreators(rows || []);
+        if (!cancelled) setAllCreators(preferLive(sampleCreators)(rows));
       })
       .catch((err) => {
         console.error("NewCampaign: creator list failed", err);

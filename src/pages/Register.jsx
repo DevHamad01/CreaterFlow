@@ -1,12 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  updateProfile,
-} from "firebase/auth";
-import { auth, db } from "@/api/base44Client";
+import { authActions, db } from "@/api/base44Client";
 import { doc, setDoc } from "firebase/firestore";
 import { safeReturnTo, returnToParam } from "@/lib/returnTo";
 import { friendlyAuthError, isCancelledAuthError } from "@/lib/authErrors";
@@ -48,7 +42,7 @@ export default function Register() {
   const returnTo = safeReturnTo();
 
   const persistProfile = async (user) => {
-    await updateProfile(user, { displayName: fullName });
+    await authActions.setDisplayName(user, fullName);
     await setDoc(doc(db, "users", user.uid), {
       email: user.email,
       user_type: userType,
@@ -77,7 +71,7 @@ export default function Register() {
 
     setPending("email");
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await authActions.createAccount(email, password);
       await persistProfile(userCredential.user);
       navigate(returnTo);
     } catch (err) {
@@ -91,7 +85,7 @@ export default function Register() {
     setError("");
     setPending("google");
     try {
-      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      const result = await authActions.signInWithGoogle();
       const user = result.user;
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,

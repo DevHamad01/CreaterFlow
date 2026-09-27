@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "@/api/base44Client";
+import { authActions } from "@/api/base44Client";
 import { safeReturnTo } from "@/lib/returnTo";
 import { friendlyAuthError, isCancelledAuthError } from "@/lib/authErrors";
 import { Button } from "@/components/ui/button";
@@ -26,7 +25,7 @@ export default function Login() {
     setError("");
     setPendingProvider("email");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await authActions.signInWithEmail(email, password);
       navigate(returnTo);
     } catch (err) {
       setError(friendlyAuthError(err, "Invalid email or password"));
@@ -39,8 +38,7 @@ export default function Login() {
     setError("");
     setPendingProvider("google");
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await authActions.signInWithGoogle();
       navigate(returnTo);
     } catch (err) {
       if (!isCancelledAuthError(err)) {
