@@ -66,3 +66,14 @@ export const CASE_STUDY = {
     { title: "Tooling teardown", clicks: 96, leads: 5, pipeline: 1800 },
   ],
 };
+
+// Pricing social proof. Points at CASE_STUDY rather than restating its numbers,
+// so the figure a buyer reads on the pricing page is the same one they read on
+// the homepage. `quote` is invented sample copy for the same fictional client.
+export const PRICING_PROOF = {
+  client: CASE_STUDY.client,
+  clientRole: CASE_STUDY.clientRole,
+  quote:
+    "We booked nine creators on the self-serve plan and still knew cost per lead for every post. The attribution is what made the budget conversation easy.",
+  stats: CASE_STUDY.stats,
+};

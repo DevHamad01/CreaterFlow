@@ -1,9 +1,13 @@
 import { useNavigate } from "react-router-dom";
-import { useId, useState } from "react";
 import PublicNav from "@/components/PublicNav";
 import PublicFooter from "@/components/PublicFooter";
 import { Button } from "@/components/ui/button";
-import { Check, ChevronDown, Sparkles } from "lucide-react";
+import { FeatureCheck } from "@/components/FeatureCheck";
+import { Stat } from "@/components/Stat";
+import { CTABand } from "@/components/CTABand";
+import FaqAccordion from "@/components/FaqAccordion";
+import { PRICING_PROOF } from "@/data/stats";
+import { Sparkles } from "lucide-react";
 
 const PLANS = [
   {
@@ -67,63 +71,71 @@ const FAQS = [
   },
 ];
 
-function FaqItem({ faq, index, isOpen, onToggle }) {
-  const panelId = `faq-panel-${index}`;
-  const buttonId = `faq-button-${index}`;
-
+/**
+ * Social proof.
+ *
+ * Sample data for a fictional client, and labelled as such on the page. Sourced
+ * from PRICING_PROOF so the numbers match the Home case band rather than
+ * inventing a second set of figures for the same fictional company.
+ */
+function SocialProof() {
   return (
-    <div className={`overflow-hidden rounded-2xl border bg-card transition-colors duration-200 ease-smooth ${
-      isOpen ? "border-primary/30 shadow-xs" : "border-border/80 hover:border-primary/20"
-    }`}>
-      <h3>
-        <button
-          id={buttonId}
-          type="button"
-          onClick={onToggle}
-          aria-expanded={isOpen}
-          aria-controls={panelId}
-          className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/60"
-        >
-          <span className="font-semibold tracking-tight">{faq.q}</span>
-          <span
-            aria-hidden="true"
-                className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-[transform,background-color,color] duration-200 ease-smooth ${
-              isOpen ? "rotate-180 bg-primary/10 text-primary" : ""
-            }`}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </span>
-        </button>
-      </h3>
-      {isOpen && (
-        <div
-          id={panelId}
-          role="region"
-          aria-labelledby={buttonId}
-          className="animate-fade-up px-5 pb-5 text-sm leading-relaxed text-muted-foreground"
-        >
-          {faq.a}
+    <section className="border-t border-border/60 bg-muted/50">
+      <div className="container-page section-y">
+        <div className="mx-auto max-w-3xl">
+          <figure className="surface-card p-7 sm:p-9">
+            <blockquote className="text-lg leading-relaxed tracking-tight sm:text-xl">
+              &ldquo;{PRICING_PROOF.quote}&rdquo;
+            </blockquote>
+            <figcaption className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-5">
+              <span
+                aria-hidden="true"
+                className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+              >
+                {PRICING_PROOF.client
+                  .split(" ")
+                  .map((w) => w[0])
+                  .join("")}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{PRICING_PROOF.client}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {PRICING_PROOF.clientRole}
+                </span>
+              </span>
+              <span className="ml-auto rounded-full border border-border bg-background px-2.5 py-1 text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                Sample client
+              </span>
+            </figcaption>
+          </figure>
+
+          {/* Same figures as the Home case band, counted up. */}
+          <dl className="mt-6 grid gap-5 sm:grid-cols-3">
+            {PRICING_PROOF.stats.map((s) => (
+              <div key={s.label} className="surface-card p-6 text-center">
+                <Stat value={s.value} label={s.label} />
+              </div>
+            ))}
+          </dl>
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
 
 export default function Pricing() {
   const navigate = useNavigate();
-  const [openFaq, setOpenFaq] = useState(null);
-  const faqListId = useId();
 
   return (
     <div className="min-h-screen bg-background">
       <PublicNav />
 
-      {/* Header */}
-      <div className="relative overflow-hidden bg-brand-radial">
+      {/* Header — flat dotted hero, solid primary accent, .text-display. */}
+      <div className="relative overflow-hidden bg-dots">
         <div className="container-page relative py-16 text-center sm:py-20">
           <span className="eyebrow">Pricing</span>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Start free. <span className="text-gradient">Upgrade when you want your time back.</span>
+          <h1 className="mx-auto mt-3 max-w-3xl text-display font-semibold">
+            Start free. <span className="text-primary">Upgrade when you want your time back.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
             No lock-in, no seat fees. You only pay when creators post.
@@ -133,125 +145,87 @@ export default function Pricing() {
 
       {/* Plans */}
       <div className="container-page pb-20">
+        {/* Both plans are neutral cards. The featured plan used to be a brand
+            gradient with white-on-violet body text, which put the pricing
+            page's most important number behind the lowest-contrast treatment
+            on the site. Emphasis is now a border + badge, not a colour wash. */}
         <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
-          {PLANS.map((plan) =>
-            plan.featured ? (
-              /* Premium: brand gradient, foreground-token contrast throughout */
-              <div
-                key={plan.key}
-                className="relative flex flex-col overflow-hidden rounded-3xl bg-brand-gradient p-8 text-primary-foreground shadow-overlay"
+          {PLANS.map((plan) => (
+            <div
+              key={plan.key}
+              className={`relative flex flex-col rounded-3xl bg-card p-8 ${
+                plan.featured
+                  ? "border-2 border-primary/40 shadow-overlay"
+                  : "border border-border shadow-xs"
+              }`}
+            >
+              {plan.featured ? (
+                <span className="absolute -top-3 left-8 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                  <Sparkles aria-hidden="true" className="h-3 w-3" />
+                  {plan.eyebrow}
+                </span>
+              ) : null}
+
+              <div className="mb-6">
+                {!plan.featured ? <span className="eyebrow">{plan.eyebrow}</span> : null}
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight">{plan.title}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{plan.blurb}</p>
+              </div>
+
+              <div className="mb-6">
+                <span className="font-display text-4xl font-semibold tracking-tight">
+                  {plan.price}
+                </span>
+                <p className="mt-1 text-sm text-muted-foreground">{plan.cadence}</p>
+              </div>
+
+              <ul className="mb-8 flex-1 space-y-3">
+                {plan.features.map((f) => (
+                  <li key={f}>
+                    <FeatureCheck tone="violet">{f}</FeatureCheck>
+                  </li>
+                ))}
+              </ul>
+
+              <Button
+                size="lg"
+                onClick={() => navigate("/signup")}
+                className="w-full"
+                variant={plan.featured ? "default" : "outline"}
               >
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary-foreground/10 blur-3xl"
-                />
-                <div className="relative flex h-full flex-col">
-                  <div className="mb-6">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-foreground/25 bg-primary-foreground/10 px-3 py-1 text-xs font-semibold">
-                      <Sparkles aria-hidden="true" className="h-3 w-3" />
-                      {plan.eyebrow}
-                    </span>
-                    <h2 className="mt-4 text-2xl font-semibold tracking-tight">{plan.title}</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-primary-foreground/85">
-                      {plan.blurb}
-                    </p>
-                  </div>
-
-                  <div className="mb-6">
-                    <span className="font-display text-4xl font-semibold tracking-tight">
-                      {plan.price}
-                    </span>
-                    <p className="mt-1 text-sm text-primary-foreground/85">{plan.cadence}</p>
-                  </div>
-
-                  <ul className="mb-8 flex-1 space-y-3">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5 text-sm text-primary-foreground/90">
-                        <span
-                          aria-hidden="true"
-                          className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary-foreground/20"
-                        >
-                          <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
-                        </span>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Button
-                    size="lg"
-                    onClick={() => navigate("/signup")}
-                    className="w-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:brightness-100"
-                  >
-                    {plan.cta}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* Standard */
-              <div key={plan.key} className="surface-card flex flex-col p-8">
-                <div className="mb-6">
-                  <span className="eyebrow">{plan.eyebrow}</span>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-tight">{plan.title}</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{plan.blurb}</p>
-                </div>
-
-                <div className="mb-6">
-                  <span className="font-display text-4xl font-semibold tracking-tight">
-                    {plan.price}
-                  </span>
-                  <p className="mt-1 text-sm text-muted-foreground">{plan.cadence}</p>
-                </div>
-
-                <ul className="mb-8 flex-1 space-y-3">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <span
-                        aria-hidden="true"
-                        className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-success/10 text-success"
-                      >
-                        <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
-                      </span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <Button variant="outline" size="lg" onClick={() => navigate("/signup")} className="w-full">
-                  {plan.cta}
-                </Button>
-              </div>
-            )
-          )}
+                {plan.cta}
+              </Button>
+            </div>
+          ))}
         </div>
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          Campaign spend is separate. No lock-in. Cancel anytime.
+        {/* Scope note. "Campaign spend is separate" is the single most
+            load-bearing sentence on a pricing page for a product whose cost is
+            per post, and it was 14px grey under the grid. */}
+        <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-muted-foreground">
+          Campaign spend is separate — you pay each creator their per-post price, and nothing
+          else. CreatorFlow charges no platform fee on the self-serve plan. No lock-in. Cancel
+          anytime.
         </p>
       </div>
 
-      {/* FAQ */}
+      <SocialProof />
+
+      {/* FAQ. Was a local FaqItem copy of the shared FaqAccordion — same markup,
+          same ids, one extra component to keep in sync. */}
       <div className="border-t border-border/60 bg-muted/50">
         <div className="container-page section-y">
-          <div className="mx-auto mb-10 max-w-2xl text-center">
-            <span className="eyebrow">FAQ</span>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Frequently asked questions
-            </h2>
-          </div>
-
-          <div id={faqListId} className="mx-auto max-w-3xl space-y-3">
-            {FAQS.map((faq, i) => (
-              <FaqItem
-                key={faq.q}
-                faq={faq}
-                index={i}
-                isOpen={openFaq === i}
-                onToggle={() => setOpenFaq(openFaq === i ? null : i)}
-              />
-            ))}
-          </div>
+          <FaqAccordion faqs={FAQS} />
         </div>
+      </div>
+
+      <div className="container-page section-y">
+        <CTABand
+          title="Start with one post, not a retainer"
+          body="Free to start, and you only pay when a creator publishes."
+          primary={{ label: "Start for free", href: "/signup" }}
+          secondary={{ label: "Browse creators", href: "/marketplace" }}
+        />
       </div>
 
       <PublicFooter />
