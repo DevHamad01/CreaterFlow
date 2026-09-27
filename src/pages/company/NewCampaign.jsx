@@ -467,11 +467,11 @@ export default function NewCampaign() {
       {step === 2 && (
         <div className="space-y-4">
           {!strategy && (
-            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-background p-8 text-center">
-              <span
-                aria-hidden="true"
-                className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-glow"
-              >
+              <div className="rounded-2xl border border-primary/25 bg-primary/[0.03] p-8 text-center">
+                <span
+                  aria-hidden="true"
+                  className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
+                >
                 <Sparkles className="h-7 w-7" />
               </span>
               <h2 className="mb-2 font-display text-lg font-semibold tracking-tight">AI Campaign Strategist</h2>

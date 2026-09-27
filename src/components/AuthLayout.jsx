@@ -14,21 +14,14 @@ import { Logo } from "@/components/PublicNav";
 /** @param {AuthLayoutProps} props */
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
-      {/* Ambient brand wash */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-brand-radial" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
-      />
-
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-dots px-4 py-12">
       <div className="relative w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <Link to="/" className="mb-6 rounded-lg" aria-label="8xNanoo home">
             <Logo />
           </Link>
           {Icon && (
-            <span className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient text-primary-foreground shadow-glow">
+            <span className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/20">
               <Icon aria-hidden="true" className="h-7 w-7" />
             </span>
           )}

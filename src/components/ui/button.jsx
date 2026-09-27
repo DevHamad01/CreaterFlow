@@ -23,7 +23,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-gradient-to-r from-primary to-iris text-primary-foreground shadow-glow hover:brightness-[1.07] hover:shadow-glow-lg hover:-translate-y-px active:translate-y-0 active:scale-[0.98] active:brightness-100",
+          // Solid primary, not from-primary to-iris. Every primary CTA on the
+          // site is this variant, so the gradient was the most-repeated piece
+          // of decoration in the build — and a violet-shifted fill is measurably
+          // darker at its right edge, which drags white label text down in
+          // contrast. Solid also gives every button the same fill, so a row of
+          // them reads as one control group.
+          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 hover:-translate-y-px active:translate-y-0 active:scale-[0.98]",
         secondary:
           "bg-secondary text-secondary-foreground border border-border/70 hover:bg-muted hover:-translate-y-px active:translate-y-0",
         outline:

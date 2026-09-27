@@ -346,7 +346,7 @@ export default function Marketplace() {
       <PublicNav />
 
       {/* Page header */}
-      <div className="relative overflow-hidden border-b border-border/60 bg-brand-radial">
+        <div className="relative overflow-hidden border-b border-border/60 bg-dots">
         <Stagger trigger="mount" className="container-page relative py-12 sm:py-14">
           <StaggerItem as="span" className="eyebrow block">
             Marketplace

@@ -602,7 +602,7 @@ export default function CampaignDetail() {
             </div>
 
             {campaignCreators.length > 0 && (
-              <div className="rounded-2xl border border-iris/25 bg-gradient-to-br from-iris/10 via-background to-background p-5">
+              <div className="rounded-2xl border border-iris/25 bg-iris/[0.03] p-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
                     <Sparkles aria-hidden="true" className="h-4 w-4 text-iris" />

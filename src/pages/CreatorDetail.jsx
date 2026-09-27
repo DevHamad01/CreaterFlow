@@ -256,7 +256,7 @@ export default function CreatorDetail() {
 
             {/* Header card */}
             <header className="surface-card-strong mb-6 overflow-hidden">
-              <div className="bg-brand-gradient px-6 py-1 sm:px-8" aria-hidden="true" />
+                <div className="h-1 bg-primary" aria-hidden="true" />
               <div className="flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-start">
                 <img
                   src={creator.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(creator.name || "creator")}&backgroundColor=2563eb,0ea5e9,6366f1`}

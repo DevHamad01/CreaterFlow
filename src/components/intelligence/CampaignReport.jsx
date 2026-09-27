@@ -75,7 +75,7 @@ export default function CampaignReport({ campaign, creators, posts, metrics, lea
 
       {/* Generate report button */}
       {!report && !loading && (
-        <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-background p-6 text-center">
+        <div className="rounded-2xl border border-primary/25 bg-primary/[0.03] p-6 text-center">
           <Sparkles aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-primary" />
           <h3 className="mb-2 font-semibold tracking-tight">Generate AI campaign report</h3>
           <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">

@@ -164,7 +164,7 @@ export default function CreatorProfileEdit() {
       />
 
       {/* Profile preview */}
-      <div className="rounded-2xl border border-border bg-gradient-to-b from-primary/10 to-background p-5">
+        <div className="rounded-2xl border border-border bg-primary/[0.03] p-5">
         <div className="flex items-center gap-4">
           <img
             src={profile.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.name}&backgroundColor=2563eb`}

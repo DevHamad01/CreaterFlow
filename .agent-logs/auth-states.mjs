@@ -282,7 +282,11 @@ host.remove();
 // --- design system + a11y --------------------------------------------------
 ({ host, root, html } = await render(Register, { route: '/signup', entry: '/signup' }));
 check('tokens: zero raw palette classes', !/(slate|blue|violet|emerald|amber|red|indigo|purple)-\d{2,3}/.test(html));
-check('tokens: brand gradient auth shell', has(html, 'bg-brand-gradient'));
+// The auth shell used to be a saturated brand gradient. It is now a flat dot
+// field with a tinted icon chip, so this asserts the gradient is GONE.
+check('tokens: auth shell has no brand gradient or radial wash',
+  !has(html, 'bg-brand-gradient') && !has(html, 'bg-brand-radial'));
+check('tokens: auth shell uses the dots texture', has(html, 'bg-dots'));
 check('tokens: rounded house inputs', has(html, 'rounded-xl'));
 const svgs = html.match(/<svg[^>]*>/g) || [];
 const noHidden = svgs.filter((s) => !s.includes('aria-hidden')).length;

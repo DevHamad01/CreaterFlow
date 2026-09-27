@@ -29,7 +29,7 @@ export default function SmartRecommendations({ campaign, campaignCreators, allCr
   if (recs.length === 0) return null;
 
   return (
-    <section className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-background p-5" aria-labelledby="smart-recommendations">
+      <section className="rounded-2xl border border-primary/25 bg-primary/[0.03] p-5" aria-labelledby="smart-recommendations">
       <div className="mb-4 flex items-center gap-2">
         <Lightbulb aria-hidden="true" className="h-4 w-4 text-primary" />
         <h3 id="smart-recommendations" className="text-sm font-semibold tracking-tight">

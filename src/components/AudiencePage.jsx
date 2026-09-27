@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CTABand } from "@/components/CTABand";
 import { Stat } from "@/components/Stat";
 import { StepCard } from "@/components/StepCard";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { ArrowRight } from "lucide-react";
 
 /**
@@ -74,35 +75,38 @@ export default function AudiencePage({
           text is decoration that competes with the headline for attention. A
           static dot field gives the hero texture without a focal gradient. */}
       <section className="relative overflow-hidden bg-dots">
-        <div className="container-page relative py-16 text-center sm:py-24">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-3.5 py-1.5 text-xs font-semibold text-primary shadow-xs backdrop-blur-sm">
+        {/* Above-the-fold, so it animates on mount rather than waiting for an
+            IntersectionObserver — the observer would only add a frame of
+            latency to content the reader is already looking at. */}
+        <Stagger trigger="mount" className="container-page relative py-16 text-center sm:py-24">
+          <StaggerItem className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-3.5 py-1.5 text-xs font-semibold text-primary shadow-xs backdrop-blur-sm">
             {BadgeIcons.map((Icon, i) => (
               <Icon key={i} aria-hidden="true" className="h-3.5 w-3.5" />
             ))}
             {badge}
-          </span>
+          </StaggerItem>
 
           {/* Both lines use .text-display. The accent line is solid primary,
               not a gradient — the only gradient headline left in the site is
               the Home hero H1. */}
-          <h1 className="mx-auto mt-7 max-w-4xl text-display font-semibold">
+          <StaggerItem as="h1" className="mx-auto mt-7 max-w-4xl text-display font-semibold">
             {headline}
             <br />
             <span className="text-primary">{accentWord}</span>
-          </h1>
+          </StaggerItem>
 
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+          <StaggerItem as="p" className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
             {sub}
-          </p>
+          </StaggerItem>
 
-          <div className="mt-9 flex flex-col items-center justify-center gap-4">
+          <StaggerItem className="mt-9 flex flex-col items-center justify-center gap-4">
             <Button size="lg" onClick={() => navigate("/signup")}>
               {ctaLabel}
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Button>
             <p className="text-sm text-muted-foreground">{ctaNote}</p>
-          </div>
-        </div>
+          </StaggerItem>
+        </Stagger>
       </section>
 
       {intro}
@@ -110,20 +114,20 @@ export default function AudiencePage({
       {/* Benefits */}
       <section className="section-y border-t border-border/60 bg-card">
         <div className="container-page">
-          <div className="mx-auto mb-14 max-w-2xl text-center">
+          <Reveal className="mx-auto mb-14 max-w-2xl text-center">
             <span className="eyebrow">Why CreatorFlow</span>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
               {benefitsHeading}
             </h2>
             {benefitsSub && <p className="mt-4 text-muted-foreground">{benefitsSub}</p>}
-          </div>
+          </Reveal>
 
           {/* Bento: cards declare their own col-span so the page has rhythm
               instead of six identical boxes. Span applies from lg only, so the
               single-column mobile stack is unaffected. */}
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {benefits.map(({ icon: Icon, title, body, span, visual }) => (
-              <div
+              <StaggerItem
                 key={title}
                 className={`surface-card surface-card-hover p-7 ${
                   benefitsLayout === "bento" ? span || "" : ""
@@ -142,9 +146,9 @@ export default function AudiencePage({
                   </div>
                   {visual ? <div className="w-full shrink-0">{visual}</div> : null}
                 </div>
-              </div>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </div>
       </section>
 
@@ -152,20 +156,23 @@ export default function AudiencePage({
       {steps && steps.length > 0 && (
         <section className="section-y border-t border-border/60 bg-muted/50">
           <div className="container-page">
-            <div className="mx-auto mb-12 max-w-2xl text-center">
+            <Reveal className="mx-auto mb-12 max-w-2xl text-center">
               <span className="eyebrow">Workflow</span>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
                 {stepsHeading}
               </h2>
-            </div>
+            </Reveal>
 
-            <ol className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* `as="ol"`: the steps are numbered and read as a sequence, so the
+                ordered-list semantics stay on the animated element rather than
+                being dropped to a generic div. */}
+            <Stagger as="ol" className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {steps.map(({ num, icon: Icon, title, body }) => (
-                <li key={num} className="min-w-0">
+                <StaggerItem key={num} as="li" className="min-w-0">
                   <StepCard number={num} icon={Icon} title={title} body={body} />
-                </li>
+                </StaggerItem>
               ))}
-            </ol>
+            </Stagger>
           </div>
         </section>
       )}
@@ -178,7 +185,7 @@ export default function AudiencePage({
            carefully. Ink plus white text gives them the contrast they need. */
         <section className="section-y border-t border-border/60 bg-ink text-white">
           <div className="container-page">
-            <div className="surface-card-strong grid items-center gap-10 bg-ink p-8 sm:p-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+            <Reveal className="surface-card-strong grid items-center gap-10 bg-ink p-8 sm:p-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
               <div>
                 <span className="eyebrow text-white/60">Attribution</span>
                 <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl text-white">
@@ -244,7 +251,7 @@ export default function AudiencePage({
                   </li>
                 ))}
               </ul>
-            </div>
+            </Reveal>
           </div>
         </section>
       ) : (
@@ -253,21 +260,21 @@ export default function AudiencePage({
             {/* `md:gap-2` — the three stat cards are short and wide, so the
                 default 1.25rem gutter left visible voids between them at the
                 breakpoint where they sit side by side. */}
-            <ul className="mx-auto grid max-w-3xl gap-5 sm:grid-cols-3 sm:gap-3">
-              {stats.map(({ value, label, icon: Icon, display, prefix = "", suffix = "" }) => (
-                <li key={label} className="surface-card p-6 text-center">
-                  {Icon ? (
-                    <span
-                      aria-hidden="true"
-                      className="mx-auto mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                  ) : null}
-                  <Stat value={value} display={display} prefix={prefix} suffix={suffix} label={label} />
-                </li>
-              ))}
-            </ul>
+            <Stagger as="ul" className="mx-auto grid max-w-3xl gap-5 sm:grid-cols-3 sm:gap-3">
+                {stats.map(({ value, label, icon: Icon, display, prefix = "", suffix = "" }) => (
+                  <StaggerItem key={label} as="li" className="surface-card p-6 text-center">
+                    {Icon ? (
+                      <span
+                        aria-hidden="true"
+                        className="mx-auto mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                    ) : null}
+                    <Stat value={value} display={display} prefix={prefix} suffix={suffix} label={label} />
+                  </StaggerItem>
+                ))}
+              </Stagger>
           </div>
         </section>
       )}
@@ -277,7 +284,9 @@ export default function AudiencePage({
       {/* FAQ */}
       <section className="section-y border-t border-border/60 bg-muted/50">
         <div className="container-page">
-          <FaqAccordion faqs={faqs} />
+          <Reveal>
+            <FaqAccordion faqs={faqs} />
+          </Reveal>
         </div>
       </section>
 

@@ -152,12 +152,15 @@ export default function Pricing() {
         <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
           {PLANS.map((plan) => (
             <div
-              key={plan.key}
-              className={`relative flex flex-col rounded-3xl bg-card p-8 ${
-                plan.featured
-                  ? "border-2 border-primary/40 shadow-overlay"
-                  : "border border-border shadow-xs"
-              }`}
+                key={plan.key}
+                // card-lift gives both plans the same hover/focus affordance, so
+                // the featured plan is distinguished by its border and badge
+                // rather than by being the only card that responds.
+                className={`card-lift relative flex flex-col rounded-3xl bg-card p-8 ${
+                  plan.featured
+                    ? "border-2 border-primary/40 shadow-overlay"
+                    : "border border-border shadow-xs"
+                }`}
             >
               {plan.featured ? (
                 <span className="absolute -top-3 left-8 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">

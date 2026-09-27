@@ -23,8 +23,11 @@ export function Logo({ compact = false, onBrand = false }) {
         aria-hidden="true"
         className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl font-display text-sm font-bold ${
           onBrand
-            ? "bg-primary-foreground/15 text-primary-foreground"
-            : "bg-brand-gradient text-primary-foreground shadow-glow"
+            ? // Flat, not bg-brand-gradient: the mark sits on ink, and a
+              // gradient chip on a dark surface added no brand signal that the
+              // wordmark next to it does not already carry.
+              "bg-primary/15 text-white"
+            : "bg-primary text-primary-foreground"
         }`}
       >
         8
@@ -36,20 +39,20 @@ export function Logo({ compact = false, onBrand = false }) {
         <span className="flex flex-col leading-none">
           <span
             className={`font-display text-lg font-semibold tracking-tight ${
-              onBrand ? "text-primary-foreground" : "text-foreground"
+              onBrand ? "text-white" : "text-foreground"
             }`}
           >
             {/* The "8x" carries the brand, so it takes the accent while "Nanoo"
                 stays in the page's ink colour for a clear reading order. */}
-            <span className={onBrand ? "text-primary-foreground" : "text-primary"}>8x</span>
+            <span className={onBrand ? "text-white" : "text-primary"}>8x</span>
             Nanoo
           </span>
           <span
             className={`mt-1 text-[10px] font-medium uppercase tracking-[0.14em] ${
-              onBrand ? "text-primary-foreground/70" : "text-muted-foreground"
+              onBrand ? "text-white/60" : "text-muted-foreground"
             }`}
           >
-            Reimagined for 8x
+            By 8xNanoo
           </span>
         </span>
       )}
@@ -226,9 +229,9 @@ export default function PublicNav() {
               {isAuthenticated ? (
                 <Button onClick={() => navigate("/app")}>Go to dashboard</Button>
               ) : (
-                <>
-                  <Button variant="outline" onClick={() => navigate("/login")}>Sign in</Button>
-                  <Button onClick={() => navigate("/signup")}>Sign up</Button>
+                  <>
+                    <Button variant="outline" onClick={() => navigate("/login")}>Sign in</Button>
+                    <Button onClick={() => navigate("/signup")}>Get started</Button>
                 </>
               )}
             </div>

@@ -100,11 +100,10 @@ export default function Home() {
       <PublicNav />
 
       {/* ---------------- Hero ---------------- */}
-      <section className="relative overflow-hidden bg-brand-radial">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
-        />
+      {/* bg-dots, and the H1 below keeps the only text-gradient in the build.
+          The radial wash behind it was a second focal point competing with the
+          headline for the same centre of the screen. */}
+      <section className="relative overflow-hidden bg-dots">
         <Stagger
           trigger="mount"
           stagger={0.09}

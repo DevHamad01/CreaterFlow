@@ -21,9 +21,7 @@ export default function PageNotFound() {
   });
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-brand-radial" />
-
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-dots p-6">
       <div className="relative w-full max-w-lg">
         <div className="surface-card p-8 text-center sm:p-10">
           <span
@@ -33,7 +31,10 @@ export default function PageNotFound() {
             <Compass className="h-7 w-7" />
           </span>
 
-          <p className="font-display text-6xl font-semibold tracking-tight text-gradient sm:text-7xl">
+          {/* Solid foreground, not text-gradient. The audit's one carve-out for
+              a gradient is the Home hero H1; "404" is not a headline, and a
+              gradient on numerals is decoration with no meaning. */}
+          <p className="font-display text-6xl font-semibold tracking-tight text-muted-foreground/40 sm:text-7xl">
             404
           </p>
 

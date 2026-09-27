@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 const UserNotRegisteredError = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted p-6">
+      <div className="flex min-h-screen items-center justify-center bg-dots p-6">
       <div className="surface-card w-full max-w-md p-8 text-center">
         <span
           aria-hidden="true"

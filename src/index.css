@@ -277,25 +277,16 @@
     }
   }
 
-  /* Brand gradient text */
+  /* The only gradient left in the product: the Home hero H1's second line.
+     `.bg-brand-gradient` and `.bg-brand-radial` were deleted once their last
+     consumers were flattened, so this utility is now the sole gradient. */
   .text-gradient {
     @apply bg-gradient-to-r from-primary to-iris bg-clip-text text-transparent;
   }
 
-  /* Brand gradient surface for hero panels / primary CTAs */
-  .bg-brand-gradient {
-    @apply bg-gradient-to-r from-primary to-iris;
-  }
-
-  .bg-brand-radial {
-    background-image: radial-gradient(ellipse 80% 60% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%);
-  }
-
-  /* Flat replacements for .bg-brand-gradient on deep bands. The gradient is
-     kept for one thing only: the Home hero H1's second line, via
-     .text-gradient. Every CTA band, case-study band and the footer are flat,
-     because a full-bleed gradient behind body text costs contrast for
-     decoration nobody reads. */
+  /* Flat ink surface for deep bands: CTA, case study, footer, attribution. A
+     full-bleed gradient behind body text costs contrast for decoration nobody
+     reads. */
   .bg-ink {
     background-color: hsl(var(--ink));
   }

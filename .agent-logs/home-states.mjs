@@ -150,7 +150,16 @@ html = await renderState('audit', 'resolve');
 check('a11y: exactly one h1', (html.match(/<h1/g) || []).length === 1);
 check('a11y: nav landmarks present', has(html, '<nav') || has(html, 'aria-label='));
 check('tokens: zero raw palette classes', !/(slate|blue|violet|emerald|amber|red|indigo|purple)-\d{2,3}/.test(html));
-check('tokens: gradient headline', has(html, 'from-primary') && has(html, 'to-iris'));
+// The H1 gradient is the single sanctioned gradient in the build, and it now
+// lives on `.text-gradient` rather than a raw `from-primary to-iris` pair.
+// Asserting the utility AND the count keeps it from being spread further.
+check('tokens: gradient headline', has(html, 'text-gradient'));
+check(
+  'tokens: exactly one gradient text span (Home H1 only)',
+  (html.match(/text-gradient/g) || []).length === 1,
+  `${(html.match(/text-gradient/g) || []).length} found`,
+);
+check('tokens: hero uses dots, not a brand radial wash', !has(html, 'bg-brand-radial'));
 check('tokens: display font on headings', has(html, 'font-display'));
 check('tokens: section rhythm utility', has(html, 'section-y'));
 check('tokens: container utility', has(html, 'container-page'));
