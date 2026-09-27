@@ -15,6 +15,9 @@ yarn-debug.log*
 # rewrites every dump, which is why the last commit contained nothing but these.
 # The HTML files in dist/ are unaffected, so the deployed build is unchanged.
 /.agent-logs/*.html
+# Sample response written by .agent-logs/ai-live-check.mjs, same reasoning: the
+# harness is tracked, its output is not.
+/.agent-logs/ai-live-sample.json
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*

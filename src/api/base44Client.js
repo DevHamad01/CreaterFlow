@@ -34,7 +34,7 @@ export const isFirebaseConfigured = Boolean(
 );
 
 export const NOT_CONFIGURED_ERROR =
-  'Firebase is not configured. Copy .env.local.example to .env.local and fill in the VITE_FIREBASE_* values.';
+  'Firebase is not configured. Copy .env.local.example to .env.local and fill in the VITE_FIREBASE_* values, then run `npm run doctor`.';
 
 // Without an API key getAuth() throws at import time, which takes the whole
 // module graph (and the app) down. Fall back to a signed-out stub so the UI

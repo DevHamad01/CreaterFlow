@@ -93,6 +93,45 @@ base44 dev     # local backend + frontend
 
 Open the URL that `base44 dev` prints (typically `http://localhost:5173`).
 
+### Configuration
+
+The app needs a Firebase project and a Gemini API key. Both are read from
+`.env.local`, which is gitignored.
+
+```bash
+cp .env.local.example .env.local
+# fill in the values, then:
+npm run doctor
+```
+
+`npm run doctor` is the preflight for this project. It reads `.env.local`,
+probes each service, and prints a copy-pasteable fix for anything broken. It
+never prints your keys. Two things it checks are easy to miss and are not
+configured by adding a key:
+
+1. **The Cloud Firestore API must be enabled for the project.** A brand-new
+   project has never called Firestore, so the API is off and every read fails
+   until you switch it on.
+2. **Sign-in providers must be enabled** in the Firebase console
+   (Authentication > Sign-in method). A project with a valid API key still
+   rejects sign-in until Email/Password is switched on. Google sign-in also
+   needs your deploy domain added to the authorised domains list.
+
+### Working on the AI layer
+
+`npm run check:ai` calls the real Gemini endpoint and asserts that each AI
+response matches the field names the UI actually reads. Run it after changing a
+prompt or a JSON schema in `src/lib/campaignAi.js`, since a mismatch between
+the two is invisible until someone clicks the button.
+
+It makes several real model calls, so it burns through a free-tier quota
+quickly. An exhausted quota is reported as a skip, not a failure, because it
+says nothing about the code. Use it deliberately rather than on every save.
+
+Note that `gemini-flash-latest` and the other `-latest` aliases drift. The
+model is pinned via `VITE_GEMINI_MODEL`; if you change it, update
+`.env.local.example` too so the next person does not inherit a dead model.
+
 ## Architecture
 
 ```
