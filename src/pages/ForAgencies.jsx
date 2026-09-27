@@ -1,8 +1,25 @@
 import AudiencePage from "@/components/AudiencePage";
+import { FeatureCheck } from "@/components/FeatureCheck";
+import { AGENCY_REPORT_ROWS, AGENCY_STATS, CREATORS_LISTED } from "@/data/stats";
 import {
-  Search, FolderKanban, BarChart3, Users, Link2, Check,
-  Building2, Layers, Target, X
+  Search, FolderKanban, BarChart3, Users, Link2,
+  Building2, Layers, Target
 } from "lucide-react";
+
+const REPORT_COLUMNS = [
+  { key: "client", label: "Client", align: "left" },
+  { key: "creators", label: "Creators", align: "right" },
+  { key: "posts", label: "Posts", align: "right" },
+  { key: "clicks", label: "Clicks", align: "right" },
+  { key: "leads", label: "Leads", align: "right" },
+  { key: "pipeline", label: "Pipeline", align: "right" },
+];
+
+const euro = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "EUR",
+  maximumFractionDigits: 0,
+});
 
 const FAQS = [
   {
@@ -45,6 +62,14 @@ const WITH_PLATFORM = [
   "Scale top creators across all clients",
 ];
 
+/**
+ * Side-by-side comparison.
+ *
+ * Neutral on both columns. This used to be red-vs-green, which read as
+ * "the left column is wrong" rather than "the left column is a different
+ * workflow" — and green-on-white was the lowest-contrast text pairing on the
+ * page. The differentiator is now the checkmark token, not a colour wash.
+ */
 function Comparison() {
   return (
     <section className="section-y border-t border-border/60 bg-card">
@@ -60,39 +85,122 @@ function Comparison() {
         </div>
 
         <div className="mx-auto grid max-w-4xl gap-5 md:grid-cols-2">
-          <div className="rounded-2xl border border-danger/25 bg-danger/5 p-6">
-            <h3 className="mb-5 flex items-center gap-2 font-semibold tracking-tight">
-              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-danger" />
-              Manual creator management
-            </h3>
+          <div className="rounded-2xl border border-border bg-background p-6">
+            <h3 className="mb-5 font-semibold tracking-tight">Manual creator management</h3>
             <ul className="space-y-3">
               {MANUAL.map((p) => (
                 <li key={p} className="flex items-start gap-2.5 text-sm text-muted-foreground">
-                  <X aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0 text-danger" strokeWidth={2.5} />
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full border-2 border-border"
+                  />
                   {p}
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-success/25 bg-success/5 p-6">
-            <h3 className="mb-5 flex items-center gap-2 font-semibold tracking-tight">
-              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-success" />
-              With CreatorFlow
-            </h3>
+          <div className="rounded-2xl border border-primary/25 bg-primary/[0.03] p-6">
+            <h3 className="mb-5 font-semibold tracking-tight">With CreatorFlow</h3>
             <ul className="space-y-3">
               {WITH_PLATFORM.map((p) => (
-                <li key={p} className="flex items-start gap-2.5 text-sm">
-                  <span
-                    aria-hidden="true"
-                    className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-success/15 text-success"
-                  >
-                    <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
-                  </span>
-                  {p}
+                <li key={p}>
+                  <FeatureCheck tone="violet">{p}</FeatureCheck>
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Reporting showcase.
+ *
+ * The audit asked for "centralized reporting" to be a wide feature rather than
+ * one card among four, because it is the reason agencies buy. A mock export
+ * table carries that claim better than a paragraph: it shows the actual
+ * columns, the per-client breakdown, and that every figure is attributable.
+ */
+function Reporting() {
+  return (
+    <section className="section-y border-t border-border/60 bg-card">
+      <div className="container-page">
+        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+          <div className="lg:sticky lg:top-24">
+            <span className="eyebrow">Reporting</span>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Every client, one export
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Per-client, per-campaign, per-creator. Pull the numbers your client
+              asks for without rebuilding a spreadsheet every Friday.
+            </p>
+            <ul className="mt-6 space-y-3">
+              {[
+                "One row per client, every metric attributed",
+                "Pipeline value in the client's reporting currency",
+                "Exports the moment a campaign posts go live",
+              ].map((point) => (
+                <li key={point}>
+                  <FeatureCheck tone="violet">{point}</FeatureCheck>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Mock export. Sample data. Table is the widest thing on the page,
+              so it scrolls horizontally rather than wrapping numbers onto
+              two lines at narrow widths. */}
+          <div className="overflow-hidden rounded-2xl border border-border bg-background">
+            <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/40 px-5 py-3.5">
+              <p className="text-sm font-semibold tracking-tight">Client performance</p>
+              <p className="text-xs text-muted-foreground">Sample data</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[38rem] text-left text-sm">
+                <caption className="sr-only">
+                  Sample per-client campaign performance for four agency clients
+                </caption>
+                <thead>
+                  <tr className="border-b border-border">
+                    {REPORT_COLUMNS.map(({ key, label, align }) => (
+                      <th
+                        key={key}
+                        scope="col"
+                        className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${
+                          align === "right" ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {AGENCY_REPORT_ROWS.map((row) => (
+                    <tr
+                      key={row.client}
+                      className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40"
+                    >
+                      <th scope="row" className="whitespace-nowrap px-5 py-3.5 font-medium">
+                        {row.client}
+                      </th>
+                      {REPORT_COLUMNS.filter((c) => c.key !== "client").map(({ key }) => (
+                        <td
+                          key={key}
+                          className="px-5 py-3.5 text-right tabular-nums text-muted-foreground"
+                        >
+                          {key === "pipeline" ? euro.format(row[key]) : row[key].toLocaleString("en-US")}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -121,7 +229,7 @@ export default function ForAgencies() {
         {
           icon: Search,
           title: "Creator discovery at scale",
-          body: "Search 3,000+ vetted B2B creators by niche, audience, geography, and price. Build shortlists you can reuse across clients.",
+          body: `Search ${CREATORS_LISTED} vetted B2B creators by niche, audience, geography, and price. Build shortlists you can reuse across clients.`,
         },
         {
           icon: Link2,
@@ -167,12 +275,16 @@ export default function ForAgencies() {
           body: "Export client-ready reports. Identify top-performing creators and scale what works across all your clients.",
         },
       ]}
-      stats={[
-        { icon: Users, value: "3,000+", label: "Vetted B2B creators" },
-        { icon: FolderKanban, value: "Unlimited", label: "Client campaigns" },
-        { icon: BarChart3, value: "Minutes", label: "To export a client report" },
-      ]}
-      extra={<Comparison />}
+      stats={AGENCY_STATS.map((stat, i) => ({
+        ...stat,
+        icon: [Users, FolderKanban, BarChart3][i],
+      }))}
+      extra={
+        <>
+          <Reporting />
+          <Comparison />
+        </>
+      }
       faqs={FAQS}
     />
   );

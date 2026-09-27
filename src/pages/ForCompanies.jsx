@@ -190,9 +190,9 @@ export default function ForCompanies() {
       ]}
       statsVariant="panel"
       stats={[
-        { icon: TrendingUp, label: "Attributed pipeline", value: "€48.2K", change: "+24%" },
-        { icon: MousePointerClick, label: "Qualified clicks", value: "418", change: "+18%" },
-        { icon: Target, label: "Leads generated", value: "124", change: "+31%" },
+        { icon: TrendingUp, label: "Attributed pipeline", display: "€48.2K", change: "+24%" },
+        { icon: MousePointerClick, label: "Qualified clicks", display: "418", change: "+18%" },
+        { icon: Target, label: "Leads generated", display: "124", change: "+31%" },
       ]}
       extra={<Trust />}
       intro={<ProblemSolution />}

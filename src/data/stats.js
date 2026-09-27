@@ -20,6 +20,24 @@ export const HOME_STATS = [
   { value: 5, suffix: "K+", label: "Posts published" },
 ];
 
+// Agency page stats. Two of the three are fixed strings, not quantities
+// ("Unlimited", "Minutes"), so they use `display` and skip the count-up rather
+// than being faked with a number that would animate to a lie.
+export const AGENCY_STATS = [
+  { value: 3000, suffix: "+", label: "Vetted B2B creators" },
+  { display: "Unlimited", label: "Client campaigns" },
+  { display: "Minutes", label: "To export a client report" },
+];
+
+// Reporting mock. Shaped like a real export so the table layout is exercised
+// against representative column widths and number lengths.
+export const AGENCY_REPORT_ROWS = [
+  { client: "Northbeam Labs", creators: 9, posts: 24, clicks: 2940, leads: 512, pipeline: 18400 },
+  { client: "Halcyon Health", creators: 6, posts: 15, clicks: 1610, leads: 288, pipeline: 11200 },
+  { client: "Fieldstone Legal", creators: 4, posts: 11, clicks: 720, leads: 96, pipeline: 5900 },
+  { client: "Ridgeway Robotics", creators: 7, posts: 18, clicks: 1985, leads: 274, pipeline: 13500 },
+];
+
 // Case-study band, reused on Pricing as social proof.
 export const CASE_STUDY = {
   client: "Northbeam Labs",

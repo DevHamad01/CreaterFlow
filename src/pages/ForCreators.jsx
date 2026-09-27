@@ -88,9 +88,9 @@ export default function ForCreators() {
         },
       ]}
       stats={[
-        { icon: Clock, value: "24h", label: "Average payout time" },
-        { icon: Wallet, value: "€500", label: "Average deal value" },
-        { icon: ShieldCheck, value: "100%", label: "Of what you earn is yours" },
+        { icon: Clock, display: "24h", label: "Average payout time" },
+        { icon: Wallet, display: "€500", label: "Average deal value" },
+        { icon: ShieldCheck, display: "100%", label: "Of what you earn is yours" },
       ]}
       faqs={FAQS}
     />

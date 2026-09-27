@@ -3,6 +3,9 @@ import PublicNav from "@/components/PublicNav";
 import PublicFooter from "@/components/PublicFooter";
 import FaqAccordion from "@/components/FaqAccordion";
 import { Button } from "@/components/ui/button";
+import { CTABand } from "@/components/CTABand";
+import { Stat } from "@/components/Stat";
+import { StepCard } from "@/components/StepCard";
 import { ArrowRight } from "lucide-react";
 
 /**
@@ -20,7 +23,10 @@ import { ArrowRight } from "lucide-react";
  * @property {string} ctaNote
  * @property {{ title: string, body: string, icon: any }[]} benefits
  * @property {{ num: string, title: string, body: string, icon: any }[]} [steps]
- * @property {{ value: string, label: string, icon: any, change?: string }[]} stats
+ * @property {{ value?: number, display?: string, prefix?: string, suffix?: string,
+ *   label: string, icon?: any, change?: string }[]} stats
+ *   `value` is counted up; `display` is a fixed string for figures that are not
+ *   quantities ("Unlimited", "Minutes"). Exactly one of the two is required.
  * @property {"cards" | "panel"} [statsVariant]
  * @property {{ q: string, a: string }[]} faqs
  * @property {string} [benefitsHeading]
@@ -60,11 +66,10 @@ export default function AudiencePage({
       <PublicNav />
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-brand-radial">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
-        />
+      {/* bg-dots, not bg-brand-radial: a soft elliptical wash behind centered
+          text is decoration that competes with the headline for attention. A
+          static dot field gives the hero texture without a focal gradient. */}
+      <section className="relative overflow-hidden bg-dots">
         <div className="container-page relative py-16 text-center sm:py-24">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-3.5 py-1.5 text-xs font-semibold text-primary shadow-xs backdrop-blur-sm">
             {BadgeIcons.map((Icon, i) => (
@@ -73,10 +78,13 @@ export default function AudiencePage({
             {badge}
           </span>
 
-          <h1 className="mx-auto mt-7 max-w-4xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+          {/* Both lines use .text-display. The accent line is solid primary,
+              not a gradient — the only gradient headline left in the site is
+              the Home hero H1. */}
+          <h1 className="mx-auto mt-7 max-w-4xl text-display font-semibold">
             {headline}
             <br />
-            <span className="text-gradient">{accentWord}</span>
+            <span className="text-primary">{accentWord}</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
@@ -134,22 +142,10 @@ export default function AudiencePage({
               </h2>
             </div>
 
-            <ol className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-2">
+            <ol className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {steps.map(({ num, icon: Icon, title, body }) => (
-                <li key={num} className="surface-card flex gap-5 p-6">
-                  <span
-                    aria-hidden="true"
-                    className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
-                  >
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <span aria-hidden="true" className="eyebrow">
-                      {num}
-                    </span>
-                    <h3 className="mt-1 font-semibold tracking-tight">{title}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
-                  </div>
+                <li key={num} className="min-w-0">
+                  <StepCard number={num} icon={Icon} title={title} body={body} />
                 </li>
               ))}
             </ol>
@@ -203,17 +199,21 @@ export default function AudiencePage({
       ) : (
         <section className="section-y border-t border-border/60 bg-card">
           <div className="container-page">
-            <ul className="mx-auto grid max-w-3xl gap-5 sm:grid-cols-3">
-              {stats.map(({ value, label, icon: Icon }) => (
-                <li key={label} className="surface-card p-7 text-center">
-                  <span
-                    aria-hidden="true"
-                    className="mx-auto mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 text-success"
-                  >
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <p className="font-display text-3xl font-semibold tracking-tight">{value}</p>
-                  <p className="mt-1.5 text-sm text-muted-foreground">{label}</p>
+            {/* `md:gap-2` — the three stat cards are short and wide, so the
+                default 1.25rem gutter left visible voids between them at the
+                breakpoint where they sit side by side. */}
+            <ul className="mx-auto grid max-w-3xl gap-5 sm:grid-cols-3 sm:gap-3">
+              {stats.map(({ value, label, icon: Icon, display, prefix = "", suffix = "" }) => (
+                <li key={label} className="surface-card p-6 text-center">
+                  {Icon ? (
+                    <span
+                      aria-hidden="true"
+                      className="mx-auto mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                  ) : null}
+                  <Stat value={value} display={display} prefix={prefix} suffix={suffix} label={label} />
                 </li>
               ))}
             </ul>
@@ -230,29 +230,15 @@ export default function AudiencePage({
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="relative overflow-hidden bg-brand-gradient section-y text-primary-foreground">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-primary-foreground/10 blur-3xl"
-        />
-        <div className="container-page relative text-center">
-          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-            {ctaLabel}
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl leading-relaxed text-primary-foreground/85">
-            {ctaNote}
-          </p>
-          <Button
-            size="lg"
-            onClick={() => navigate("/signup")}
-            className="mt-8 bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:brightness-100"
-          >
-            {ctaLabel}
-            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-          </Button>
-        </div>
-      </section>
+      {/* CTA — delegated to CTABand so the ink surface, button pair and
+          spacing match every other page's closing band. The old inline band
+          was a brand gradient, which put saturated colour behind body copy. */}
+      <CTABand
+        title={ctaLabel}
+        body={ctaNote}
+        fullBleed
+        primary={{ label: ctaLabel, href: "/signup" }}
+      />
 
       <PublicFooter />
     </div>

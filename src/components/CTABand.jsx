@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
  * and a gradient behind 16px text costs contrast for decoration that reads as
  * noise. `fullBleed` drops the rounding and padding for use as a section
  * rather than a card.
+ *
+ * @param {object} props
+ * @param {string} props.title
+ * @param {string} [props.body]
+ * @param {{ label: string, href: string }} [props.primary]
+ * @param {{ label: string, href: string }} [props.secondary]
+ * @param {boolean} [props.fullBleed]
  */
 export function CTABand({
   title,
