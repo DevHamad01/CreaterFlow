@@ -51,6 +51,42 @@ export const COMPANY_ATTRIBUTION = {
   sparkline: [18, 21, 24, 23, 29, 33, 31, 38, 42, 40, 46, 48.2],
 };
 
+// Creators page. `CREATORS_PAID` and the average deal value are the two
+// figures the page leads with, so they live here like every other stat.
+export const CREATOR_STATS = [
+  { display: "24h", label: "Average payout time" },
+  { value: 500, prefix: "\u20ac", label: "Average deal value" },
+  { display: "100%", label: "Of what you earn is yours" },
+];
+
+/**
+ * Earnings calculator inputs.
+ *
+ * The rates are illustrative sample benchmarks, not a quote: a real one would
+ * come from completed deals. `rate` is typical price per post for that follower
+ * band, and `postsPerMonth` is a conservative default (2, not the 4-6 an
+ * optimistic calculator would use) because a number that flatters the product
+ * is the fastest way to lose the reader's trust.
+ */
+export const CREATOR_EARNINGS = {
+  bands: [
+    { key: "starter", label: "Under 5K", followers: 2500, rate: 120, postsPerMonth: 2 },
+    { key: "growing", label: "5K - 15K", followers: 10000, rate: 250, postsPerMonth: 2 },
+    { key: "established", label: "15K - 50K", followers: 30000, rate: 500, postsPerMonth: 2 },
+    { key: "top", label: "50K+", followers: 75000, rate: 1200, postsPerMonth: 2 },
+  ],
+  fillRate: 0.4, // share of offers a creator actually accepts
+};
+
+// Fictional creator testimonial. Sample copy, same reason as CASE_STUDY.
+export const CREATOR_TESTIMONIAL = {
+  name: "Sofia Marin",
+  role: "Technical SEO creator",
+  handle: "48K followers",
+  quote:
+    "I price every post myself now. The last three campaigns paid within a day of going live, and I could see the clicks each one actually produced.",
+};
+
 // Case-study band, reused on Pricing as social proof.
 export const CASE_STUDY = {
   client: "Northbeam Labs",

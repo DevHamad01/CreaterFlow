@@ -175,6 +175,60 @@ check('companies: solution column uses check token', has(companies, 'The Creator
 check('companies: trust is a row, not three cards', !has(companies, 'Built for B2B marketing teams') || !has(companies, 'grid max-w-3xl gap-5 sm:grid-cols-3'));
 check('companies: no inlined creator count literal', !/3,000\+/.test(companiesSource));
 
+// --- creators: earnings calculator ------------------------------------------
+// The calculator is the only interactive marketing surface in the three
+// audience pages, and it is the one claim on the site a reader can falsify for
+// themselves. So the band switch is actually clicked, not just asserted present.
+const calculatorHost = dom.window.document.createElement('div');
+dom.window.document.body.appendChild(calculatorHost);
+const calculatorRoot = ReactDOMClient.createRoot(calculatorHost);
+await act(async () => {
+  calculatorRoot.render(
+    React.createElement(AuthProvider, null,
+      React.createElement(MemoryRouter, { initialEntries: ['/for-creators'] },
+        React.createElement(pages.creators.default)))
+  );
+});
+await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
+
+const monthlyOf = (html) => {
+  const m = html.match(/Estimated monthly earnings<\/p><p class="[^"]*">([^<]+)</);
+  return m ? m[1] : null;
+};
+
+const beforeBand = monthlyOf(calculatorHost.innerHTML);
+check('calculator: renders an estimate', beforeBand === '€400', beforeBand || 'not found');
+check('calculator: estimate is a live region', has(calculatorHost.innerHTML, 'aria-live="polite"'));
+check('calculator: uses a radio group, not toggles', has(calculatorHost.innerHTML, 'type="radio"') && has(calculatorHost.innerHTML, 'name="creator-band"'));
+check('calculator: 4 follower bands', countOf(calculatorHost.innerHTML, /name="creator-band"/g) === 4);
+check('calculator: assumptions are stated, not hidden', has(calculatorHost.innerHTML, 'Sample benchmarks, not a quote'));
+
+// Switch to the top band and confirm the figure actually recomputes.
+//
+// `element.click()`, not `checked = true` + a synthetic change: React installs
+// its own value tracker on controlled inputs, so assigning `.checked` directly
+// is swallowed and the component never re-renders. A real click goes through
+// the same path a user's click takes.
+const topBand = [...calculatorHost.querySelectorAll('input[name="creator-band"]')].find((el) => el.value === 'top');
+await act(async () => { topBand.click(); });
+await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+const afterBand = monthlyOf(calculatorHost.innerHTML);
+check('calculator: switching band recomputes', afterBand === '€960' && afterBand !== beforeBand, `${beforeBand} -> ${afterBand}`);
+check('calculator: per-post rate shown alongside', has(calculatorHost.innerHTML, '€1,200 per post'));
+check('calculator: acceptance rate disclosed', has(calculatorHost.innerHTML, '40% acceptance rate'));
+
+await act(async () => { calculatorRoot.unmount(); });
+calculatorHost.remove();
+
+// --- creators: copy + testimonial ------------------------------------------
+check('creators: badge drops the unverifiable star rating', !has(creators, '4.8/5'));
+check('creators: stats come from data/stats', /CREATOR_STATS/.test(companiesSource === '' ? '' : fs.readFileSync('src/pages/ForCreators.jsx', 'utf8')));
+check('creators: no inlined payout count literal', !/2,000\+/.test(fs.readFileSync('src/pages/ForCreators.jsx', 'utf8')));
+check('creators: testimonial is a real figure/blockquote', has(creators, '<blockquote') && has(creators, '<figcaption'));
+check('creators: testimonial labelled as sample', has(creators, 'Sample creator'));
+check('creators: testimonial name matches marketplace data', has(creators, 'Sofia Marin') && /id: "sofia-marin"/.test(fs.readFileSync('src/data/creators.js', 'utf8')));
+check('creators: closing CTA band is flat ink', has(body(creators), 'bg-ink'));
+
 // --- faq --------------------------------------------------------------------
 check('agencies: FAQ rendered', has(agencies, 'Can I manage multiple clients'));
 

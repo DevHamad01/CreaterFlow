@@ -1,4 +1,6 @@
 import AudiencePage from "@/components/AudiencePage";
+import EarningsCalculator, { CreatorTestimonial } from "@/components/EarningsCalculator";
+import { CREATOR_STATS, CREATORS_PAID } from "@/data/stats";
 import {
   Wallet, Megaphone, TrendingUp, Star,
   Clock, ShieldCheck, UserCircle, FileText, BarChart3
@@ -34,15 +36,15 @@ const FAQS = [
 export default function ForCreators() {
   return (
     <AudiencePage
-      badge="2,000+ creators paid · 4.8/5 rating"
+      badge={`${CREATORS_PAID} creators paid`}
       badgeIcons={[Star]}
       headline="Get paid to post"
       accentWord="on LinkedIn"
-      sub="Choose deals from B2B brands you know, post in your own voice, and get paid within 24 hours. No negotiating, no admin, no exclusivity. Creators earn €500 on average per deal."
+      sub="Take deals from B2B brands you already follow, post in your own voice, and get paid within 24 hours of going live. You set the price, you accept or decline each brief, and there is no exclusivity."
       ctaLabel="Start earning"
-      ctaNote="Join 2,000+ creators already getting paid to post. Free, non-exclusive, and you keep 100% of what you earn."
+      ctaNote="Free to join, non-exclusive, and no fee on anything you earn."
       benefitsHeading="Why creators choose CreatorFlow"
-      benefitsSub="Everything you need to monetize your LinkedIn audience — without the admin."
+      benefitsSub="Everything you need to monetise your LinkedIn audience — without the admin."
       benefits={[
         {
           icon: Megaphone,
@@ -52,12 +54,12 @@ export default function ForCreators() {
         {
           icon: TrendingUp,
           title: "Track your performance",
-          body: "See views, clicks, and leads for every post in real time. Build a track record that earns you higher rates.",
+          body: "See views, clicks, and leads for every post in real time. A track record is what earns you higher rates over time.",
         },
         {
           icon: Wallet,
           title: "Get paid automatically",
-          body: "Payouts within 24h of your post going live. No invoices, no chasing, no spreadsheets. You keep 100% of what you earn.",
+          body: "Payouts within 24h of your post going live. No invoices to send, no chasing, and no fee taken from your rate.",
         },
       ]}
       stepsHeading="How it works"
@@ -87,11 +89,12 @@ export default function ForCreators() {
           body: "Once approved, schedule and publish. Track your performance and get paid automatically within 24h. No invoice needed.",
         },
       ]}
-      stats={[
-        { icon: Clock, display: "24h", label: "Average payout time" },
-        { icon: Wallet, display: "€500", label: "Average deal value" },
-        { icon: ShieldCheck, display: "100%", label: "Of what you earn is yours" },
-      ]}
+      stats={CREATOR_STATS.map((stat, i) => ({
+        ...stat,
+        icon: [Clock, Wallet, ShieldCheck][i],
+      }))}
+      intro={<EarningsCalculator />}
+      extra={<CreatorTestimonial />}
       faqs={FAQS}
     />
   );
