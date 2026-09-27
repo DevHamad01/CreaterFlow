@@ -13,12 +13,12 @@ const number = new Intl.NumberFormat("en-US");
  */
 export function Stat({
   value,
-  display,
+  display = null,
   prefix = "",
   suffix = "",
   label,
   tone = "light",
-  delta,
+  delta = null,
   className = "",
 }) {
   const isFixed = display != null;

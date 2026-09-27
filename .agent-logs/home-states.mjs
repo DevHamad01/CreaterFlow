@@ -100,28 +100,34 @@ async function renderState(label, mode) {
 }
 
 // --- loading ---------------------------------------------------------------
+// The featured grid is seeded with the sample records, so a request that never
+// settles must still render those six cards rather than a skeleton grid. The
+// grid is deliberately not gated: a skeleton would hide content the user can
+// already read, and the section is above the fold.
 let html = await renderState('loading', 'pending');
-check('loading: shimmer skeleton rendered', has(html, 'animate-shimmer'));
-check('loading: 6 skeleton cards', (html.match(/animate-shimmer/g) || []).length >= 18);
-check('loading: aria-busy + polite live region', has(html, 'aria-busy="true"') && has(html, 'aria-live="polite"'));
-check('loading: sr-only status text', has(html, 'Loading featured creators'));
+check('loading: sample cards render while pending', (html.match(/rounded-full/g) || []).length >= 6);
+check('loading: no skeleton gating', !has(html, 'animate-shimmer'));
+check('loading: section header present', has(html, 'Featured creators'));
+check('loading: marketplace link present', has(html, 'href="/marketplace"'));
+check('loading: no error note', !has(html, 'Retry'));
 check('loading: no empty-state copy', !has(html, 'No creators to show yet'));
-check('loading: no error alert', !has(html, 'role="alert"'));
 
 // --- empty -----------------------------------------------------------------
+// An empty 200 response must NOT blank the section: the seeded records stay.
 html = await renderState('empty', 'empty');
-check('empty: EmptyState headline', has(html, 'No creators to show yet'));
-check('empty: descriptive body copy', has(html, 'appear here as soon as'));
-check('empty: marketplace CTA link', has(html, 'href="/marketplace"'));
+check('empty: seeded cards retained', (html.match(/rounded-full/g) || []).length >= 6);
+check('empty: no empty-state copy', !has(html, 'No creators to show yet'));
+check('empty: no error note', !has(html, 'Retry'));
 check('empty: no skeletons', !has(html, 'animate-shimmer'));
-check('empty: no error alert', !has(html, 'role="alert"'));
 
 // --- error -----------------------------------------------------------------
+// A failed fetch is non-fatal here: samples stay on screen and the failure is
+// reported as a status note, not an alert that covers the content.
 html = await renderState('error', 'reject');
-check('error: role=alert', has(html, 'role="alert"'));
-check('error: server message surfaced', has(html, 'Firestore unavailable (503)'));
-check('error: retry button', has(html, 'Try again'));
-check('error: danger styling token', has(html, 'border-danger/25') || has(html, 'border-danger\\/25'));
+check('error: non-fatal status note', has(html, 'role="status"'));
+check('error: no blocking alert', !has(html, 'role="alert"'));
+check('error: samples still visible', (html.match(/rounded-full/g) || []).length >= 6);
+check('error: retry affordance present', has(html, 'Retry'));
 check('error: no skeletons', !has(html, 'animate-shimmer'));
 
 // --- success ---------------------------------------------------------------

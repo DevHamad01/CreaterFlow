@@ -10,12 +10,12 @@ export function StepCard({ number, icon: Icon, title, body }) {
       <span className="text-xs font-semibold tracking-widest text-primary">
         {number}
       </span>
-      {Icon ? (
+    {Icon ? (
         <span
           aria-hidden="true"
           className="mt-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"
         >
-          <Icon size={20} strokeWidth={1.75} />
+          <Icon aria-hidden="true" size={20} strokeWidth={1.75} />
         </span>
       ) : null}
       <h3 className="mt-3 text-base font-semibold text-foreground">{title}</h3>
