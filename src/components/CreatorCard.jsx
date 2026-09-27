@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { MapPin, BadgeCheck, Star } from "lucide-react";
+import { availabilityPill } from "@/data/creators";
 
 /**
  * @typedef {object} CreatorCardProps
@@ -52,11 +53,19 @@ export default function CreatorCard({ creator, fitScore, saved, onToggleSave }) 
         </div>
 
         {/* Niche tags */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">{creator.niche}</span>
           {creator.sub_niches?.slice(0, 1).map((s) => (
             <span key={s} className="text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground">{s}</span>
           ))}
+          {/* Availability drives the marketplace filter, so it has to be
+              visible on the card itself — otherwise the filter hides rows for
+              a reason the user cannot see. */}
+          {creator.availability ? (
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${availabilityPill(creator.availability)}`}>
+              {creator.availability}
+            </span>
+          ) : null}
         </div>
 
         {/* Stats grid */}

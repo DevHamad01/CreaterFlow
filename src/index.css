@@ -19,6 +19,14 @@
     --info: 255 88% 60%;
     --scrim: 250 25% 6%;             /* always-dark modal scrim, both themes */
 
+    /* ---- Flat ink surfaces ----
+       Deep bands (CTA, case study, attribution) and the footer use a flat
+       surface instead of a gradient fill. Both are fixed values, identical in
+       light and dark mode, so they need no dark-theme override. Kept out of
+       the .dark block on purpose. */
+    --ink: 259 46% 13%;              /* deep iris ink — CTA / case-study bands */
+    --ink-deep: 240 6% 7%;           /* near-black — footer */
+
     /* ---- Neutrals: violet-tinted ink ---- */
     --background: 250 33% 98.5%;
     --foreground: 250 28% 12%;
@@ -281,6 +289,41 @@
 
   .bg-brand-radial {
     background-image: radial-gradient(ellipse 80% 60% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%);
+  }
+
+  /* Flat replacements for .bg-brand-gradient on deep bands. The gradient is
+     kept for one thing only: the Home hero H1's second line, via
+     .text-gradient. Every CTA band, case-study band and the footer are flat,
+     because a full-bleed gradient behind body text costs contrast for
+     decoration nobody reads. */
+  .bg-ink {
+    background-color: hsl(var(--ink));
+  }
+
+  .bg-ink-deep {
+    background-color: hsl(var(--ink-deep));
+  }
+
+  /* Dotted field for hero anchors and empty panels. Sized in px so the dot
+     grid stays square regardless of the element's box, and painted in the
+     primary hue so it reads as brand texture rather than noise. */
+  .bg-dots {
+    background-image: radial-gradient(
+      circle,
+      hsl(var(--primary) / 0.14) 1px,
+      transparent 1px
+    );
+    background-size: 18px 18px;
+  }
+
+  /* Hero + section display type. clamp() so a 375px phone and a 1440px
+     desktop both land on a sane measure without a breakpoint ladder.
+     The negative tracking tightens large sizes, where default tracking
+     reads loose. */
+  .text-display {
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    letter-spacing: -0.03em;
+    line-height: 1.05;
   }
 
   /* Edge fade for carousels */
