@@ -128,9 +128,29 @@ It makes several real model calls, so it burns through a free-tier quota
 quickly. An exhausted quota is reported as a skip, not a failure, because it
 says nothing about the code. Use it deliberately rather than on every save.
 
-Note that `gemini-flash-latest` and the other `-latest` aliases drift. The
+`gemini-flash-latest` and the other `-latest` aliases also drift upstream. The
 model is pinned via `VITE_GEMINI_MODEL`; if you change it, update
 `.env.local.example` too so the next person does not inherit a dead model.
+
+### Deploying: the Gemini key ships in the client
+
+Anything prefixed `VITE_` is baked into the JavaScript at build time, so a
+prebuilt `dist` upload ships the Gemini key to every visitor and it can be
+lifted from devtools. Two ways to handle it, best first:
+
+- **Deploy from the git repository** and set `VITE_GEMINI_API_KEY` as an
+  encrypted environment variable in the Cloudflare Pages dashboard. The build
+  runs on Cloudflare's side, so the key never enters a zip, a commit, or this
+  machine.
+- **Upload a prebuilt `dist`**, and either restrict the key first or accept that
+  it is public: Google Cloud console > APIs & Services > Credentials > your key
+  > Application restrictions (Websites, your deploy domain) + API restrictions
+  (Generative Language API). A referrer-restricted key cannot be called from
+  another origin, which is what stops someone draining your quota.
+
+Firebase's own `VITE_FIREBASE_*` values are *expected* to be public. Access
+control there comes from Firestore Security Rules, not from hiding the config.
+
 
 ## Architecture
 
