@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { creators as sampleCreators } from "@/data/creators";
+import { preferLive } from "@/lib/seeded";
 import { HERO_BADGE, HOME_STATS, CASE_STUDY } from "@/data/stats";
 import { Stat } from "@/components/Stat";
 import { StepCard } from "@/components/StepCard";
@@ -80,7 +81,7 @@ export default function Home() {
         // Only overwrite when the API actually returns records. A successful
         // response carrying an empty list is not a reason to blank a section
         // that has usable sample content to fall back on.
-        if (Array.isArray(rows) && rows.length > 0) setCreators(rows);
+        setCreators(preferLive(sampleCreators)(rows));
       })
       .catch((err) => {
         console.error("Home: failed to load featured creators", err);

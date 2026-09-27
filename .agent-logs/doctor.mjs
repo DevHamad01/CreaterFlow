@@ -11,8 +11,13 @@
  * Read-only. Sends no user data and prints no secrets.
  */
 import { loadEnv } from 'vite';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-const ROOT = 'D:/nanoo/CreaterFlow';
+// Resolved from this file rather than hardcoded, so the script works from any
+// clone location. It used to point at one absolute path, which meant
+// `npm run doctor` silently read the wrong (or no) .env.local anywhere else.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const env = loadEnv('development', ROOT, 'VITE_');
 
 const results = [];
@@ -26,7 +31,9 @@ const warn = (label, detail, fix) => {
 };
 const fail = (label, detail, fix) => {
   failures++;
-  results.push(['WARN', label, detail, fix]);
+  // Was pushing 'WARN' here, so every blocking item printed with the advisory
+  // label while still counting as a failure and still exiting 1.
+  results.push(['FAIL', label, detail, fix]);
 };
 const info = (label, detail) => results.push(['INFO', label, detail]);
 
@@ -182,7 +189,9 @@ warn(
 );
 
 // ── report ──────────────────────────────────────────────────────────────────
-const ICON = { PASS: 'PASS', WARN: 'WARN', INFO: 'INFO' };
+// FAIL has to be listed here. It was missing, so every blocking item printed as
+// `[undefined]` and looked advisory next to the real WARN entries.
+const ICON = { PASS: 'PASS', FAIL: 'FAIL', WARN: 'WARN', INFO: 'INFO' };
 for (const [level, label, detail, fix] of results) {
   console.log(`\n[${ICON[level]}] ${label}`);
   if (detail) console.log(`       ${detail}`);

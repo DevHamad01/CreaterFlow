@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { auth } from '@/api/base44Client';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { authActions } from '@/api/base44Client';
 
 /**
  * The signed-in user: Firebase identity fields plus whatever the app stores in
@@ -44,8 +43,17 @@ export const AuthProvider = ({ children }) => {
   const [appPublicSettings, setAppPublicSettings] = useState({ id: 'default', public_settings: {} });
 
   useEffect(() => {
-    // Listen to auth state changes
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    // Listen to auth state changes.
+    //
+    // Goes through authActions.observeAuth rather than calling Firebase's
+    // onAuthStateChanged with the `auth` export. When Firebase is not
+    // configured that export is a signed-out stub, and Firebase reads
+    // `auth.app.settings` off it and throws
+    // "Cannot read properties of undefined (reading 'settings')". Because this
+    // subscription runs on every page mount, that took down the whole app on
+    // every route — the sign-in button looked dead because no request was ever
+    // made. observeAuth reports `null` and returns a no-op unsubscribe instead.
+    const unsubscribe = authActions.observeAuth(async (currentUser) => {
       try {
         if (currentUser) {
           setUser({
@@ -77,7 +85,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = (shouldRedirect = true) => {
-    signOut(auth)
+    authActions.signOut()
       .then(() => {
         setUser(null);
         setIsAuthenticated(false);

@@ -30,8 +30,14 @@ export function friendlyAuthError(err, fallback) {
   if (/email-already-used|invalid-email/i.test(code)) {
     return "That doesn't look like a valid email address.";
   }
-  if (/operation-not-allowed|unauthorized-domain/i.test(code)) {
-    return "Email sign-in isn't enabled for this project yet. Try Google sign-in.";
+  if (/unauthorized-domain/i.test(code)) {
+    return "This site isn't an authorised domain for the Firebase project yet.";
+  }
+  if (/operation-not-allowed/i.test(code)) {
+    // The API key is valid and the request reached Firebase, so the only
+    // remaining cause is the sign-in provider being off in the console. Say so
+    // rather than "try Google sign-in", which is often off too.
+    return "Email sign-in isn't switched on for this project yet.";
   }
   if (/too-many-requests/i.test(code)) {
     return "Too many attempts. Wait a minute and try again.";

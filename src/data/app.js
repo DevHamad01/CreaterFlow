@@ -22,6 +22,23 @@ const COMPANY = "Northbeam Analytics";
 const CREATOR_IDS = creators.map((c) => c.id);
 const creatorById = Object.fromEntries(creators.map((c) => [c.id, c]));
 
+// campaignCreators and favorites both denormalise three fields off the creator
+// record. They used to be hand-typed literals, which drifted out of sync the
+// moment the sample niches were renamed to match the Creator entity enum — the
+// CRM then showed a niche that no longer existed on the marketplace. Deriving
+// them from the creator record makes drift impossible.
+const withCreatorFields = (rows) =>
+  rows.map((row) => {
+    const source = row.creator_id && creatorById[row.creator_id];
+    if (!source) return row;
+    return {
+      ...row,
+      creator_niche: source.niche,
+      creator_headline: source.headline,
+      creator_followers: source.linkedin_followers,
+    };
+  });
+
 const day = (n) => new Date(Date.UTC(2026, 8, 1 + n)).toISOString();
 
 // ── Campaigns ───────────────────────────────────────────────────────────────
@@ -130,7 +147,7 @@ export const campaigns = [
 // status follows the CampaignCreator enum: invited | accepted |
 // draft_submitted | in_review | revision_requested | approved | scheduled |
 // live | completed
-export const campaignCreators = [
+export const campaignCreators = withCreatorFields([
   {
     id: "cc-1",
     campaign_id: "camp-flowpilot",
@@ -255,7 +272,7 @@ export const campaignCreators = [
     tracking_link: "https://creatorflow.app/t/devweekly/marcus-bell",
     invited_date: day(17),
   },
-];
+]);
 
 // ── Posts ───────────────────────────────────────────────────────────────────
 export const posts = [
@@ -517,10 +534,13 @@ export const campaignTemplates = [
 ];
 
 // ── Notifications ───────────────────────────────────────────────────────────
+// `type` values must match the TYPE_ICONS keys in NotificationCenter.jsx, which
+// are the same strings src/lib/notifications.js writes when it raises a real
+// alert. An unrecognised type silently falls back to the generic Info glyph.
 export const notifications = [
   {
     id: "n-1",
-    type: "lead_target",
+    type: "lead_goal_50",
     title: "FlowPilot passed 50% of its lead target",
     message: "FlowPilot has generated 62 of 150 target leads with 31 days remaining.",
     campaign_id: "camp-flowpilot",
@@ -531,7 +551,7 @@ export const notifications = [
   },
   {
     id: "n-2",
-    type: "content_review",
+    type: "draft_submitted",
     title: "Draft waiting for review",
     message: "Sofia Marin submitted a draft for FlowPilot Launch.",
     campaign_id: "camp-flowpilot",
@@ -542,9 +562,9 @@ export const notifications = [
   },
   {
     id: "n-3",
-    type: "budget",
-    title: "People Ops Reboot is 70% through budget",
-    message: "EUR 5,950 of EUR 8,500 committed across 2 creators.",
+    type: "budget_80",
+    title: "People Ops Reboot is 80% through budget",
+    message: "EUR 6,800 of EUR 8,500 committed across 2 creators.",
     campaign_id: "camp-peopleops",
     campaign_name: "People Ops Reboot",
     severity: "warning",
@@ -553,7 +573,7 @@ export const notifications = [
   },
   {
     id: "n-4",
-    type: "campaign_complete",
+    type: "campaign_status",
     title: "Fintech Trust Series completed",
     message: "All posts are live. Executive report is ready to review.",
     campaign_id: "camp-fintrust",
@@ -562,10 +582,21 @@ export const notifications = [
     read: true,
     action_url: "/app/campaigns/camp-fintrust",
   },
+  {
+    id: "n-5",
+    type: "payment_due",
+    title: "Payment due for Aiko Tanaka",
+    message: "EUR 900 for the Analytics Teardown post is due on 28 Sep.",
+    campaign_id: "camp-peopleops",
+    campaign_name: "People Ops Reboot",
+    severity: "critical",
+    read: true,
+    action_url: "/app/payments",
+  },
 ];
 
 // ── Saved creators (CRM) ────────────────────────────────────────────────────
-export const favorites = [
+export const favorites = withCreatorFields([
   {
     id: "fav-1",
     creator_id: "marcus-bell",
@@ -608,7 +639,7 @@ export const favorites = [
     pipeline_stage: "Saved",
     created_by_id: "seed-company",
   },
-];
+]);
 
 // Creators invited to a campaign but not yet accepted, which is what the
 // company marketplace and creator opportunities pages join against.
@@ -617,4 +648,7 @@ export const pendingCreatorIds = CREATOR_IDS.slice(0, 4);
 // Creator pages scope rows by creator_name, so the sample data is anchored to one
 // named sample creator. A new account has no rows under its own name and picks
 // these up; an account with real rows keeps them.
-export const DEMO_CREATOR_NAME = "Marcus Bell";
+//
+// Re-exported from creators.js rather than repeated, so the profile editor and
+// the campaign rows can never point at different people.
+export { DEMO_PROFILE_SEED_NAME as DEMO_CREATOR_NAME } from "./creators";

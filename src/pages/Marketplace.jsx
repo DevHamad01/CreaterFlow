@@ -21,11 +21,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { creators as sampleCreators } from "@/data/creators";
+import { preferLive } from "@/lib/seeded";
 import { Reveal } from "@/components/motion/Reveal";
 
-// Candidate niches for filtering. This is the set the API is expected to
-// return; the seed records use their own labels, so a niche with no matching
-// records simply yields an empty grid rather than an error.
+// Candidate niches for filtering. This is the full Creator entity enum rather
+// than only the niches present in the current result set, so a niche keeps
+// appearing as a filter once live records use it. The seed records use these
+// same labels, so every filter matches at least one sample creator.
 const NICHES = [
   "AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering", "Fintech",
   "HR & Recruiting", "Product & Design", "RevOps & Automation", "Data & Analytics", "Cybersecurity",
@@ -99,7 +101,7 @@ export default function Marketplace() {
         // Only overwrite on a non-empty response. Treating an empty array as
         // authoritative is what made the whole marketplace read as unavailable
         // the moment the backend had nothing to return.
-        if (Array.isArray(rows) && rows.length > 0) setCreators(rows);
+        setCreators(preferLive(sampleCreators)(rows));
       })
       .catch((err) => {
         console.error("Marketplace: failed to load creators", err);

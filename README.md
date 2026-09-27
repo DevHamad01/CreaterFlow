@@ -95,27 +95,48 @@ Open the URL that `base44 dev` prints (typically `http://localhost:5173`).
 
 ### Configuration
 
-The app needs a Firebase project and a Gemini API key. Both are read from
-`.env.local`, which is gitignored.
+The app needs a Firebase project and a Gemini API key.
+
+**Firebase config is committed**, in `src/config/firebase.js`. This is
+deliberate. Firebase *web app* config is not a secret — it identifies the
+project, it does not authenticate anything, and Firebase's own docs say so.
+Every web app ships it to the browser, and access control comes from Firestore
+Security Rules and per-user auth tokens instead.
+
+It has to be committed because the app deploys by building the git repository,
+and `.env.local` is gitignored. A build on the host never sees `.env.local`, so
+before this file existed every `VITE_FIREBASE_*` came back `undefined` and the
+entire site loaded the signed-out stub. The only console symptom was a
+misleading `TypeError: Cannot read properties of undefined (reading
+'settings')` — Firebase choking on a stub that was never a real Auth object —
+which read as "sign-in is broken" rather than "the build had no config".
+`VITE_FIREBASE_*` in the environment still overrides the committed values.
+
+**The Gemini key is not committed**, because it authorises billable quota. Set
+it in the host's encrypted environment variables.
 
 ```bash
 cp .env.local.example .env.local
-# fill in the values, then:
+# only needed for local dev: overrides the committed Firebase values and adds
+# VITE_GEMINI_API_KEY
 npm run doctor
 ```
 
 `npm run doctor` is the preflight for this project. It reads `.env.local`,
 probes each service, and prints a copy-pasteable fix for anything broken. It
-never prints your keys. Two things it checks are easy to miss and are not
-configured by adding a key:
+never prints your keys. It also reports the two console switches that adding a
+key cannot fix:
 
 1. **The Cloud Firestore API must be enabled for the project.** A brand-new
-   project has never called Firestore, so the API is off and every read fails
-   until you switch it on.
+   project has never called Firestore, so the API is off and every read and
+   write fails with `PERMISSION_DENIED: Cloud Firestore API has not been used
+   in project … before or it is disabled` until you switch it on.
+   https://console.developers.google.com/apis/api/firestore.googleapis.com/overview
 2. **Sign-in providers must be enabled** in the Firebase console
    (Authentication > Sign-in method). A project with a valid API key still
-   rejects sign-in until Email/Password is switched on. Google sign-in also
-   needs your deploy domain added to the authorised domains list.
+   rejects sign-in with `auth/operation-not-allowed` until Email/Password is
+   switched on. Google sign-in also needs the provider enabled and your deploy
+   domain added to the authorised domains list.
 
 ### Working on the AI layer
 
@@ -132,6 +153,26 @@ says nothing about the code. Use it deliberately rather than on every save.
 model is pinned via `VITE_GEMINI_MODEL`; if you change it, update
 `.env.local.example` too so the next person does not inherit a dead model.
 
+### Sample data, and removing it
+
+Every screen is populated with sample data, so a fresh clone and a fresh account
+both render a working product rather than a grid of empty states:
+
+- `src/data/creators.js` — the public marketplace, the Home featured grid, the
+  public creator profile page, and the creator profile editor.
+- `src/data/app.js` — the signed-in company and creator workspaces: campaigns,
+  campaign creators, posts, metrics, leads, payments, templates, notifications
+  and the saved-creator CRM.
+- `src/data/stats.js` — marketing copy and figures on the landing pages.
+
+The rule is in `src/lib/seeded.js`: a page initialises from its seed and only
+replaces it when the live response actually has rows, so a non-empty backend
+always wins and the seeds can be deleted one file at a time. `preferLive` guards
+against an empty response wiping a populated screen.
+
+To delete all of it: remove the seeds, and the pages fall back to the API with no
+other change.
+
 ### Deploying: the Gemini key ships in the client
 
 Anything prefixed `VITE_` is baked into the JavaScript at build time, so a
@@ -141,21 +182,20 @@ lifted from devtools. Two ways to handle it, best first:
 - **Deploy from the git repository** and set `VITE_GEMINI_API_KEY` as an
   encrypted environment variable in the Cloudflare Pages dashboard. The build
   runs on Cloudflare's side, so the key never enters a zip, a commit, or this
-  machine.
+  machine. Firebase needs nothing set there; its config is committed.
 - **Upload a prebuilt `dist`**, and either restrict the key first or accept that
   it is public: Google Cloud console > APIs & Services > Credentials > your key
   > Application restrictions (Websites, your deploy domain) + API restrictions
   (Generative Language API). A referrer-restricted key cannot be called from
   another origin, which is what stops someone draining your quota.
 
-Firebase's own `VITE_FIREBASE_*` values are *expected* to be public. Access
-control there comes from Firestore Security Rules, not from hiding the config.
-
 
 ## Architecture
 
 ```
 src/
+├── config/
+│   └── firebase.js          # Committed public Firebase web config
 ├── pages/
 │   ├── Home.jsx              # Public landing page
 │   ├── Marketplace.jsx       # Public creator marketplace
@@ -197,6 +237,12 @@ src/
 │   ├── intelligence.js       # Matching, scoring, simulation engine
 │   ├── campaignAi.js         # AI strategy, content review, report generation
 │   └── notifications.js       # Campaign alert detection
+│   ├── api/
+│   │   └── base44Client.js      # Firebase + Base44-style entity facade
+│   ├── data/                    # Sample data, deletable once populated
+│   │   ├── creators.js          # Marketplace, Home grid, creator profile
+│   │   ├── app.js               # Company + creator workspaces
+│   │   └── stats.js             # Landing-page marketing figures
 └── base44/
     └── entities/              # Data schemas
 ``

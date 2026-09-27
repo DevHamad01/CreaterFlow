@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { creators as seedCreators } from "@/data/creators";
 import { useAuth } from "@/lib/AuthContext";
 import PublicNav from "@/components/PublicNav";
 import PublicFooter from "@/components/PublicFooter";
@@ -118,12 +119,23 @@ export default function CreatorDetail() {
     setNotFound(false);
     base44.entities.Creator.get(id)
       .then((data) => {
-        if (data) setCreator(data);
+        if (data) {
+          setCreator(data);
+          return;
+        }
+        // A miss is not necessarily a dead link. The marketplace grid is seeded
+        // from src/data/creators.js, so it links to ids like "sofia-marin" that
+        // have no Firestore document behind them. Without this fallback every
+        // card on an unseeded backend opened to "Creator not found".
+        const seeded = seedCreators.find((c) => c.id === id);
+        if (seeded) setCreator(seeded);
         else setNotFound(true);
       })
       .catch((err) => {
         console.error("CreatorDetail: load failed", err);
-        setError(
+        const seeded = seedCreators.find((c) => c.id === id);
+        if (seeded) setCreator(seeded);
+        else setError(
           "We couldn't reach the marketplace. The profile may have been removed, or the connection dropped."
         );
       })

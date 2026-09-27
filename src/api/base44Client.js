@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
+  onAuthStateChanged,
+  signOut,
   sendPasswordResetEmail,
   confirmPasswordReset,
   updateProfile,
@@ -24,25 +26,22 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-export const isFirebaseConfigured = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.projectId
-);
+import { firebaseConfig, isFirebaseConfigured as checkConfig } from '@/config/firebase';
 
 export const NOT_CONFIGURED_ERROR =
-  'Firebase is not configured. Copy .env.local.example to .env.local and fill in the VITE_FIREBASE_* values, then run `npm run doctor`.';
+  'Firebase is not configured. The committed values in src/config/firebase.js are empty — set the VITE_FIREBASE_* values in .env.local, then run `npm run doctor`.';
 
-// Without an API key getAuth() throws at import time, which takes the whole
+export const isFirebaseConfigured = checkConfig(firebaseConfig);
+
+// Without a usable config getAuth() throws at import time, which takes the whole
 // module graph (and the app) down. Fall back to a signed-out stub so the UI
 // still renders; reads return empty and writes fail with the error above.
+//
+// The stub is NOT a Firebase Auth object. Passing it to Firebase's own
+// helpers reads `auth.app.settings` off undefined and throws
+// `TypeError: Cannot read properties of undefined (reading 'settings')`, which
+// names none of the real cause. That is why every Firebase entry point in this
+// file lives on `authActions` instead of being called with the `auth` export.
 function createUnconfiguredAuth() {
   return {
     currentUser: null,
@@ -314,8 +313,34 @@ function requireConfigured() {
  * "Cannot read properties of undefined (reading 'settings')" — an error that
  * says nothing about the actual cause. Every entry point therefore checks the
  * config first, so the failure is the actionable NOT_CONFIGURED_ERROR.
+ *
+ * The `observeAuth` and `signOut` pair exists for the same reason and is the
+ * single most important entry point here: AuthContext subscribes on every page
+ * mount, so handing it the stub threw the "settings" TypeError on every route
+ * and took the whole app down before a single auth request went out.
  */
 export const authActions = {
+  /**
+   * Subscribe to auth state. Never throws for an unconfigured app: it reports
+   * `null` (signed out) and hands back a no-op unsubscribe, so the provider
+   * still settles instead of rejecting.
+   *
+   * @param {(user: import('firebase/auth').User | null) => void} callback
+   * @returns {() => void} unsubscribe
+   */
+  observeAuth(callback) {
+    if (!isFirebaseConfigured || !auth) {
+      callback(null);
+      return () => {};
+    }
+    return onAuthStateChanged(auth, callback);
+  },
+
+  async signOut() {
+    requireConfigured();
+    return signOut(auth);
+  },
+
   async signInWithEmail(email, password) {
     requireConfigured();
     return signInWithEmailAndPassword(auth, email, password);
@@ -329,11 +354,6 @@ export const authActions = {
   async createAccount(email, password) {
     requireConfigured();
     return createUserWithEmailAndPassword(auth, email, password);
-  },
-
-  async setDisplayName(user, displayName) {
-    requireConfigured();
-    return updateProfile(user, { displayName });
   },
 };
 
@@ -351,6 +371,7 @@ export const base44 = {
     async updateMe(data) {
       const firebaseUser = auth.currentUser;
       if (!firebaseUser) throw new Error('Not authenticated');
+      if (!db) throw new Error(NOT_CONFIGURED_ERROR);
 
       const profileChanges = stripUndefined(data);
       if (profileChanges.full_name) {
@@ -360,10 +381,12 @@ export const base44 = {
       return toRecord(firebaseUser.uid, profileChanges);
     },
     async resetPasswordRequest(email) {
+      requireConfigured();
       await sendPasswordResetEmail(auth, email);
       return true;
     },
     async resetPassword({ resetToken, newPassword }) {
+      requireConfigured();
       if (!resetToken) throw new Error('Missing password reset token');
       await confirmPasswordReset(auth, resetToken, newPassword);
       return true;

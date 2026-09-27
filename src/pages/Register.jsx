@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authActions, db } from "@/api/base44Client";
-import { doc, setDoc } from "firebase/firestore";
+import { authActions, base44 } from "@/api/base44Client";
 import { safeReturnTo, returnToParam } from "@/lib/returnTo";
 import { friendlyAuthError, isCancelledAuthError } from "@/lib/authErrors";
 import { Button } from "@/components/ui/button";
@@ -41,15 +40,21 @@ export default function Register() {
 
   const returnTo = safeReturnTo();
 
+  // Routed through base44.auth.updateMe rather than a raw `doc(db, ...)`.
+  // `db` is null when Firebase is unconfigured, and a raw Firestore call would
+  // throw a second, unrelated error on top of the sign-in one. updateMe also
+  // mirrors full_name onto the Firebase displayName, so full_name must not be
+  // blank or Google sign-in's own name gets erased.
   const persistProfile = async (user) => {
-    await authActions.setDisplayName(user, fullName);
-    await setDoc(doc(db, "users", user.uid), {
-      email: user.email,
+    const resolvedName = fullName || user?.displayName || "";
+    const now = new Date();
+    await base44.auth.updateMe({
+      email: user?.email,
       user_type: userType,
-      full_name: fullName,
+      full_name: resolvedName,
       company_name: userType === "company" ? companyName : "",
-      created_at: new Date(),
-      updated_at: new Date(),
+      created_at: now,
+      updated_at: now,
     });
   };
 
@@ -71,8 +76,8 @@ export default function Register() {
 
     setPending("email");
     try {
-      const userCredential = await authActions.createAccount(email, password);
-      await persistProfile(userCredential.user);
+      const { user } = await authActions.createAccount(email, password);
+      await persistProfile(user);
       navigate(returnTo);
     } catch (err) {
       setError(friendlyAuthError(err, "Registration failed"));
@@ -85,16 +90,8 @@ export default function Register() {
     setError("");
     setPending("google");
     try {
-      const result = await authActions.signInWithGoogle();
-      const user = result.user;
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        user_type: userType,
-        full_name: fullName || user.displayName || "",
-        company_name: userType === "company" ? companyName : "",
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
+      const { user } = await authActions.signInWithGoogle();
+      await persistProfile(user);
       navigate(returnTo);
     } catch (err) {
       if (!isCancelledAuthError(err)) {

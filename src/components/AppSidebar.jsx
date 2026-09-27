@@ -9,6 +9,8 @@ import {
   CreditCard, Settings, LogOut, Menu, Briefcase, Wallet, UserCircle, Megaphone, X
 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { preferLive } from "@/lib/seeded";
+import { campaigns as seedCampaigns } from "@/data/app";
 
 const COMPANY_NAV = [
   { label: "Dashboard", path: "/app", icon: LayoutDashboard },
@@ -110,15 +112,20 @@ export default function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [campaigns, setCampaigns] = useState([]);
+  // Seeded so the campaign switcher is populated on a fresh account instead of
+  // silently going empty. A live response replaces them.
+  const [campaigns, setCampaigns] = useState(seedCampaigns);
 
   const isCreator = user?.user_type === "creator";
 
   useEffect(() => {
     if (user && !isCreator) {
       base44.entities.Campaign.filter({ created_by_id: user.id })
-        .then(setCampaigns)
-        .catch(() => {});
+        .then((rows) => setCampaigns(preferLive(seedCampaigns)(rows)))
+        .catch((err) => {
+          console.error("AppSidebar: campaign list failed", err);
+          setCampaigns(seedCampaigns);
+        });
     }
   }, [user, isCreator]);
 

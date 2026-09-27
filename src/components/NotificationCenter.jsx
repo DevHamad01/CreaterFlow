@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { scanAllCampaignAlerts, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications";
+import { preferLive } from "@/lib/seeded";
+import { notifications as seedNotifications } from "@/data/app";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -14,6 +16,8 @@ const SEVERITY_CONFIG = {
   info: { icon: Info, color: "text-primary", bg: "bg-primary/10" },
 };
 
+// Keys must match TYPE_ICONS below or every seeded row falls back to the
+// generic Info glyph and the bell looks uniform.
 const TYPE_ICONS = {
   budget_80: Wallet,
   budget_100: Wallet,
@@ -26,7 +30,9 @@ const TYPE_ICONS = {
 };
 
 export default function NotificationCenter({ user, campaigns }) {
-  const [notifications, setNotifications] = useState([]);
+  // Seeded so the bell has content on a fresh account instead of the
+  // "No notifications yet" empty state. A live response replaces them.
+  const [notifications, setNotifications] = useState(seedNotifications);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [open, setOpen] = useState(false);
@@ -42,10 +48,12 @@ export default function NotificationCenter({ user, campaigns }) {
     setLoadError(false);
     try {
       const notifs = await base44.entities.Notification.list("-created_date", 30);
-      setNotifications(notifs || []);
+      setNotifications(preferLive(seedNotifications)(notifs));
     } catch (err) {
       console.error("NotificationCenter: load failed", err);
-      setNotifications([]);
+      // Keep the seeded rows visible: a fetch failure is not a reason to empty
+      // a panel that has sample content to show.
+      setNotifications(seedNotifications);
       setLoadError(true);
     } finally {
       setLoading(false);
@@ -205,72 +213,85 @@ export default function NotificationCenter({ user, campaigns }) {
                   </div>
                 ))}
               </div>
-            ) : loadError ? (
-              <div className="px-4 py-10 text-center">
-                <p className="text-sm text-foreground">We couldn't load your notifications</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Check your connection and try again.
-                </p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={() => loadNotifications()}>
-                  <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
-                  Try again
-                </Button>
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
-                <span
-                  aria-hidden="true"
-                  className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted"
-                >
-                  <Bell className="h-5 w-5 text-muted-foreground" />
-                </span>
-                <p className="text-sm font-medium">No notifications yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Campaign alerts will appear here automatically
-                </p>
-              </div>
             ) : (
-              <ul>
-                {notifications.map((notif) => {
-                  const Icon = TYPE_ICONS[notif.type] || Info;
-                  const config = SEVERITY_CONFIG[notif.severity] || SEVERITY_CONFIG.info;
-                  return (
-                    <li key={notif.id}>
-                      <button
-                        type="button"
-                        onClick={() => handleNotifClick(notif)}
-                        className={`flex w-full items-start gap-3 border-b border-border/70 px-4 py-3 text-left transition-colors hover:bg-muted ${
-                          !notif.read ? "bg-primary/5" : ""
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${config.bg}`}
-                        >
-                          <Icon className={`h-4 w-4 ${config.color}`} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium">
-                            {notif.title}
-                            {!notif.read && <span className="sr-only"> (unread)</span>}
-                          </span>
-                          <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-                            {notif.message}
-                          </span>
-                          {notif.campaign_name && (
-                            <span className="mt-1 block truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                              {notif.campaign_name}
+              <>
+                {loadError && (
+                  <p
+                    role="status"
+                    className="flex items-start gap-2 border-b border-border/70 bg-warning/10 px-4 py-2.5 text-xs text-warning"
+                  >
+                    <AlertTriangle aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                    <span>
+                      Showing sample alerts. We couldn&apos;t reach your notifications.
+                    </span>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => loadNotifications()}
+                      className="ml-auto h-auto shrink-0 p-0 text-xs"
+                    >
+                      <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
+                      Retry
+                    </Button>
+                  </p>
+                )}
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+                    <span
+                      aria-hidden="true"
+                      className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted"
+                    >
+                      <Bell className="h-5 w-5 text-muted-foreground" />
+                    </span>
+                    <p className="text-sm font-medium">No notifications yet</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Campaign alerts will appear here automatically
+                    </p>
+                  </div>
+                ) : (
+                  <ul>
+                    {notifications.map((notif) => {
+                      const Icon = TYPE_ICONS[notif.type] || Info;
+                      const config = SEVERITY_CONFIG[notif.severity] || SEVERITY_CONFIG.info;
+                      return (
+                        <li key={notif.id}>
+                          <button
+                            type="button"
+                            onClick={() => handleNotifClick(notif)}
+                            className={`flex w-full items-start gap-3 border-b border-border/70 px-4 py-3 text-left transition-colors hover:bg-muted ${
+                              !notif.read ? "bg-primary/5" : ""
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${config.bg}`}
+                            >
+                              <Icon className={`h-4 w-4 ${config.color}`} />
                             </span>
-                          )}
-                        </span>
-                        {!notif.read && (
-                          <span aria-hidden="true" className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-medium">
+                                {notif.title}
+                                {!notif.read && <span className="sr-only"> (unread)</span>}
+                              </span>
+                              <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+                                {notif.message}
+                              </span>
+                              {notif.campaign_name && (
+                                <span className="mt-1 block truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                                  {notif.campaign_name}
+                                </span>
+                              )}
+                            </span>
+                            {!notif.read && (
+                              <span aria-hidden="true" className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
             )}
           </div>
 

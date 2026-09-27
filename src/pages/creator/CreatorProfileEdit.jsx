@@ -13,6 +13,7 @@ import EmptyState from "@/components/EmptyState";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, BadgeCheck, UserRound, AlertTriangle, RefreshCw } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { creators as seedCreators, DEMO_PROFILE_SEED_NAME } from "@/data/creators";
 
 const NICHES = [
   "AI & SaaS", "Sales & GTM", "Marketing & Content", "DevTools & Engineering",
@@ -25,6 +26,32 @@ const AVAILABILITY = [
   { value: "limited", label: "Limited" },
   { value: "booked", label: "Booked" },
 ];
+
+// Used when there is neither a stored profile nor a sample row to fall back on.
+const emptyProfile = (name) => ({
+  name,
+  headline: "",
+  bio: "",
+  niche: "AI & SaaS",
+  sub_niches: [],
+  country: "",
+  city: "",
+  linkedin_followers: 0,
+  engagement_rate: 0,
+  audience_type: "",
+  audience_industries: [],
+  audience_geography: [],
+  price_per_post: 500,
+  availability: "available",
+  rating: 5,
+  reviews_count: 0,
+  avg_impressions: 0,
+  avg_clicks: 0,
+  avg_leads: 0,
+  languages: ["English"],
+  verified: false,
+  total_campaigns: 0,
+});
 
 export default function CreatorProfileEdit() {
   const { user } = useAuth();
@@ -47,36 +74,26 @@ export default function CreatorProfileEdit() {
       .then((creators) => {
         if (creators.length > 0) {
           setProfile(creators[0]);
+          return;
+        }
+        // No profile under this name. Open the sample profile rather than a
+        // blank form, so the editor has every field populated and the save
+        // button does something visible. A new account is not a new creator
+        // with nothing to say, it is an account that has not been set up yet.
+        const seeded = seedCreators.find((c) => c.name === DEMO_PROFILE_SEED_NAME);
+        if (seeded) {
+          const { id, ...rest } = seeded;
+          setProfile({ ...rest, id: undefined });
         } else {
-          // Create a new profile
-          setProfile({
-            name: user.full_name || "",
-            headline: "",
-            bio: "",
-            niche: "AI & SaaS",
-            sub_niches: [],
-            country: "",
-            city: "",
-            linkedin_followers: 0,
-            engagement_rate: 0,
-            audience_type: "",
-            audience_industries: [],
-            audience_geography: [],
-            price_per_post: 500,
-            availability: "available",
-            rating: 5,
-            reviews_count: 0,
-            avg_impressions: 0,
-            avg_clicks: 0,
-            avg_leads: 0,
-            languages: ["English"],
-            verified: false,
-            total_campaigns: 0,
-          });
+          setProfile(emptyProfile(user.full_name || ""));
         }
       })
       .catch((err) => {
         console.error("CreatorProfileEdit: load failed", err);
+        // A failed load is not the same as having no profile. Showing the
+        // sample profile here would hide a real outage behind plausible-looking
+        // data, so the error state stays: it is actionable and the user can
+        // retry. Only a successful-but-empty response falls back to the seed.
         setError("We couldn't load your profile. Check your connection and try again.");
       })
       .finally(() => setLoading(false));
